@@ -45,7 +45,8 @@ set OLD_DIR=%CD%
 D:
 cd "D:\DEV\GAMEGURUMAXREPO\GameGuru Core"
 call "UseENCRYPTIONANDSECURITYCODES.bat"
-set MSBUILD_PATH="C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe"
+set MSBUILD_PATH="C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe"
+if not exist %MSBUILD_PATH% set MSBUILD_PATH="C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
 set SOLUTION_PATH="D:\DEV\GAMEGURUMAXREPO\GameGuru Core\GameGuruWickedMAX.sln"
 set CONFIGURATION=ReleaseForSteam
 set PLATFORM=x64

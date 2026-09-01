@@ -22,14 +22,14 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -73,7 +73,8 @@
       <AdditionalIncludeDirectories>../../../WICKEDREPO/WickedEngine;../Dark Basic Public Shared/Include/;../Dark Wicked Shared/Include;../GameGuru/Include/;../SDK/DirectX/;../Guru-WickedMAX;../Dark Wicked Shared/DWTerrain/;../SDK/BULLET/bullet-3.19/src;../SDK/Steamworks SDK/public/;..\SDK\RecastContrib;..\SDK\RecastContrib\fastlz;../Guru-WickedMAX/GGRecastDetour/DebugUtils/Include;../Guru-WickedMAX/GGRecastDetour/Detour/Include;../Guru-WickedMAX/GGRecastDetour/DetourCrowd/Include;../Guru-WickedMAX/GGRecastDetour/DetourTileCache/Include;../Guru-WickedMAX/GGRecastDetour/Recast/Include;..\SDK\RecastContrib\SDL\include;../Guru-WickedMAX/GGRecastDetour/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <BrowseInformation>false</BrowseInformation>
-    </ClCompile>
+          <AdditionalOptions>/FS %(AdditionalOptions)</AdditionalOptions>
+      </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -106,7 +107,8 @@
       <AdditionalIncludeDirectories>../../../WICKEDREPO/WickedEngine;../Dark Basic Public Shared/Include/;../GameGuru/Include/;../SDK/DirectX/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <BrowseInformation>true</BrowseInformation>
-    </ClCompile>
+          <AdditionalOptions>/FS %(AdditionalOptions)</AdditionalOptions>
+      </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
