@@ -7500,29 +7500,6 @@ DARKSDK_DLL bool LoadDBO ( LPSTR pPassedInFilename, sObject** ppObject )
 		if (FileExist(cAssimpFilename) == 0) return false;
 		if ( LoadAssImpObject (cAssimpFilename, ppObject, g_eLoadScalingMode ) == false )
 		{
-			// before give up, use converter to see if can create a DBO fron the X we can load
-			char pOldDir[MAX_PATH];
-			GetCurrentDirectoryA(MAX_PATH, pOldDir);
-			char pRealLocationOfModelFile[MAX_PATH];
-			strcpy(pRealLocationOfModelFile, pOldDir);
-			pRealLocationOfModelFile[strlen(pRealLocationOfModelFile) - strlen("Files")] = 0;
-			strcat(pRealLocationOfModelFile, "\\");
-			GG_GetRealPath(pRealLocationOfModelFile, 1);
-			SetDir(pRealLocationOfModelFile);
-			extern char g_pAbsPathToConverter[MAX_PATH];
-			HANDLE g_hConvertWAVtoLIPProcess = NULL;
-			DB_ExecuteFile(&g_hConvertWAVtoLIPProcess, "open", g_pAbsPathToConverter, "", "", true);
-			int iRunning = 1;
-			while (iRunning == 1) 
-			{
-				iRunning = 0;
-				DWORD dwStatus;
-				if ( GetExitCodeProcess ( g_hConvertWAVtoLIPProcess, &dwStatus )==TRUE )
-					if(dwStatus==STILL_ACTIVE)
-						iRunning = 1;
-			}
-			CloseHandle ( g_hConvertWAVtoLIPProcess );
-			SetDir(pOldDir);
 			char pDBOVersionOfFile[MAX_PATH];
 			strcpy(pDBOVersionOfFile, pFilename);
 			pDBOVersionOfFile[strlen(pDBOVersionOfFile) - strlen(pExtension)] = 0;

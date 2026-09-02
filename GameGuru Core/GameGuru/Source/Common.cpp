@@ -52,8 +52,8 @@ char g_pCloudKeyErrorString[10240];
 char g_pCloudKeyExpiresDate[11];
 bool g_bCloudKeyIsHomeEdition = false;
 
-// global to store abs path to converter
-char g_pAbsPathToConverter[MAX_PATH];
+// global to store absolute path to ffmpeg.exe (used by audio import and project icon generation)
+char g_pAbsPathToFfmpeg[MAX_PATH];
 
 // flag to control whether mouse pointer clipped and locked to MAX window!
 bool g_bClipInForce = false;
@@ -94,91 +94,6 @@ void CheckForNewUpdateWicked(void)
 
 void common_init ( void )
 {
-	/*
-	// if a user needs to decrypt their media from an old GG Classic Game, use this code 
-	#define EXTRACTENCRYPTEDMEDIA
-	#ifdef EXTRACTENCRYPTEDMEDIA
-	// store current folder to restore later
-	cStr pOldDir = GetDir();
-	// Create DBPDATA folder for this process
-	GetTempPathA(_MAX_PATH, g_WindowsTempDirectory);
-	_chdir(g_WindowsTempDirectory);
-	_mkdir("dbpdata");
-	// path to location of all files we want to decrypt
-	LPSTR pPathToClassicEncryptedFiles = "D:\\DEV\\DOWNLOADS\\game-to-change";
-	// set to work path and add everything from Files to a list
-	SetDir(pPathToClassicEncryptedFiles);
-	addallinfoldertocollection("Files","");
-	// go through all files in list and decrypt the ones marked _e_
-	SetDir("Files");
-	cStr pFilesRootDir = GetDir();
-	pFilesRootDir = pFilesRootDir + "\\";
-	SetCanUse_e_(1);
-	for ( int f = 1; f <= g.filecollectionmax; f++ )
-	{
-		LPSTR pThisFile = t.filecollection_s[f].Get();
-		if (strstr(pThisFile, "\\_e_") != NULL)
-		{
-			// found an encrypted file
-			char pVirtualFilename[MAX_PATH];
-			strcpy(pVirtualFilename, pThisFile);
-
-			// decrypt file
-			g_pGlob->Decrypt( pVirtualFilename );
-
-			// if temp created successfully
-			if (FileExist(pVirtualFilename) == 1)
-			{
-				// create new filename for the unencrypted version (dasdasdsa\\dsadsad\\_e_dsadas.xxx)
-				char pActualFile[MAX_PATH];
-				strcpy(pActualFile, "");
-				char pNewDecryptedFilename[MAX_PATH];
-				strcpy(pNewDecryptedFilename, pThisFile);
-				for (int n = strlen(pNewDecryptedFilename)-1; n>0; n--)
-				{
-					if (pNewDecryptedFilename[n] == '\\' || pNewDecryptedFilename[n] == '/')
-					{
-						strcpy(pActualFile, pNewDecryptedFilename + n + 4);
-						pNewDecryptedFilename[n+1] = 0;
-						break;
-					}
-				}
-				if (strlen(pActualFile) > 0)
-				{
-					// copy new decrypted file
-					char pAbsDestFile[MAX_PATH];
-					strcpy(pAbsDestFile, pFilesRootDir.Get());
-					strcat(pAbsDestFile, pNewDecryptedFilename);
-					strcat(pAbsDestFile, pActualFile);
-
-					//strcat(pNewDecryptedFilename, pActualFile);
-					//MessageBoxA(NULL, pNewDecryptedFilename, pNewDecryptedFilename, MB_OK);
-					//CopyFileA(pVirtualFilename, pNewDecryptedFilename, FALSE);
-					CopyFileA(pVirtualFilename, pAbsDestFile, FALSE);
-
-					// if copy was successful, delete old encrypted file
-					//if (FileExist(pNewDecryptedFilename) == 1)
-					char pAbsSrcFileToDelete[MAX_PATH];
-					strcpy(pAbsSrcFileToDelete, pFilesRootDir.Get());
-					strcat(pAbsSrcFileToDelete, pThisFile);
-					if (FileExist(pAbsDestFile) == 1)
-					{
-						//DeleteFileA(pThisFile);
-						DeleteFileA(pAbsSrcFileToDelete);
-					}
-				}
-			}
-		}
-	}
-	SetCanUse_e_(0);
-	// reset the above list 
-	g.filecollectionmax = 0;
-	Dim ( t.filecollection_s,500 );
-	// restore folder and continue
-	SetDir(pOldDir.Get());
-	#endif
-	MessageBoxA(NULL, pPathToClassicEncryptedFiles, "Decrypt Complete!", MB_OK);
-	*/
 
 	/*
 	// copy contents of playermedia to 'expansionobb'
@@ -230,37 +145,19 @@ void common_init ( void )
 	}
 	*/
 
-	// work out and store absolute path to converter in root folder (kept as other code depends on the abs root path) (though Guru-Converter.exe now never called by MAX)
-	GetCurrentDirectoryA(MAX_PATH, g_pAbsPathToConverter);
-	strcat(g_pAbsPathToConverter, "\\Guru-Converter.exe");
+	// CLASSIC REMOVAL: Guru-Converter.exe support fully removed. This variable (formerly
+	// g_pAbsPathToConverter) now points directly at ffmpeg.exe, used by the audio importer
+	// and project icon generation in M-GridEditB.cpp.
+	GetCurrentDirectoryA(MAX_PATH, g_pAbsPathToFfmpeg);
+	strcat(g_pAbsPathToFfmpeg, "\\ffmpeg.exe");
 
 	// determines if EDITOR or GAME right away!
 	FPSC_VeryEarlySetup();
 	if (stricmp(g.trueappname_s.Get(), "Guru-MapEditor") == NULL)
 	{
 		// MAP EDITOR
-		// Before launch MAX, run the Classic to MAX converter to see if any assets require porting from X files to DBO
-		// continues in background, does not wait until finished before launching MAX (small chance of trying to use an old X file first time!)
-		// better down the load if this popped up as an IMGUI prompt showing this process happening on startup
-		// with an option in the dialog and in the editor settings to switch off this activity by default
-		if (1)
-		{
-			// FOR DEVELOPMENT - Ensures core files all use DBO, no X files!
-			// LB: From now, I will manually run the converter if I can introducing X files to the BUILD
-			// HINSTANCE hinstance = ShellExecuteA(NULL, "open", g_pAbsPathToConverter, "", "", SW_SHOWDEFAULT);
-		}
-
-		// FOR RELEASE - Scans writable folder and convert any found there!
-		char pOldDir[MAX_PATH];
-		GetCurrentDirectoryA(MAX_PATH, pOldDir);
-		char pRealWritableArea[MAX_PATH];
-		strcpy(pRealWritableArea, pOldDir);
-		strcat(pRealWritableArea, "\\");
-		GG_GetRealPath(pRealWritableArea, 1);
-		SetDir(pRealWritableArea);
-		//PE: FASTLOAD - This takes 5 sec here, if not already loaded ?
-		//HINSTANCE hinstance = ShellExecuteA(NULL, "open", g_pAbsPathToConverter, "", "", SW_SHOWDEFAULT);
-		SetDir(pOldDir);
+		// CLASSIC REMOVAL: Classic-to-MAX converter startup scan removed (was never called since
+		// the converter was disabled, and this block cost ~5 seconds of editor startup time).
 	}
 	else
 	{

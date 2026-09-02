@@ -24798,29 +24798,6 @@ void gridedit_load_map ( void )
 		int iOldGE = t.grideditselect;
 		editor_loadcfg ( true );
 
-		extern bool g_bNeedToConvertClassicPositionsToMAX;
-		if (g_bNeedToConvertClassicPositionsToMAX == true)
-		{
-			// new terrain system is located at 0,0,0 (not 25600x600x25600), so shift to new location
-			GGVECTOR3 vToMAXShift = GGVECTOR3(25600, 600, 25600);
-			if (g.entityelementlist > 0)
-			{
-				// shift all entity elements to new positions
-				for (int e = 1; e <= g.entityelementlist; e++)
-				{
-					t.entityelement[e].x -= vToMAXShift.x;
-					t.entityelement[e].y -= vToMAXShift.y;
-					t.entityelement[e].z -= vToMAXShift.z;
-				}
-			}
-
-			// LB: also shift camera position to match (if seemingly the old coordinate system) [need a better way to detect 'classic' levels and 'old MAX' levels!!
-			if (fabs(t.cx_f-25600)<1000.0f && fabs(t.cy_f - 25600) < 1000.0f)
-			{
-				t.cx_f -= vToMAXShift.x;
-				t.cy_f -= vToMAXShift.z;
-			}
-		}
 
 		//In wicked keep current window open, terrain , entity...
 		t.grideditselect = iOldGE;
