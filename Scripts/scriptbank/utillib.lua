@@ -128,7 +128,10 @@ function HaveEnough( name, amount, list )
 
 	if amount == 0 then
 		return true
-		
+
+	elseif list == nil then
+		return false
+
 	elseif list[ name ] ~= nil then
 		return list[ name ].amount >= amount
 	else
@@ -339,8 +342,8 @@ function U.RandomOffsetPos( e, dist, offset, x, z )
 	local Ent = gEnt[ e ]
 
 	if Ent == nil then return 0, 0 end
-	
-	return RandomPos( x + ( Ent.x - x)/offset, z + (Ent.z - z)/offset, dist )
+
+	return RandomPos( dist, x + ( Ent.x - x)/offset, z + (Ent.z - z)/offset )
 end
 
 -- function returns squared distance between two points
