@@ -63,6 +63,23 @@ if %ERRORLEVEL% neq 0 (
     color 07
     exit /b %ERRORLEVEL%
 )
+
+echo Run the unit test gate before any deployment
+call "%~dp0GameGuru Core\run_unit_tests.bat" Release
+if %ERRORLEVEL% neq 0 (
+    echo.
+    color 4F
+    echo =====================================
+    echo          UNIT TESTS FAILED!
+    echo    Deployment to Steam was aborted.
+    echo =====================================
+    timeout /t 5 >nul
+    color 07
+    cd /d "%OLD_DIR%"
+    endlocal
+    exit /b %ERRORLEVEL%
+)
+echo .
 cd /d "%OLD_DIR%"
 endlocal
 ::pause
