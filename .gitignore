@@ -248,3 +248,9 @@ GameGuru Core/Guru-WickedMAX/Wicked-MAX/x64/ReleaseTEST/mipastu medieval.ipdb
 AI-CompileBuildDeployJustUPLOAD.bat
 AI-CompileBuildDeploy.bat
 GameGuru Core/Dark Basic Public Shared/Dark Basic Pro SDK/DarkSDK/Objects/Objects/
+
+# Unit test build outputs
+/GameGuru Core/Tests/GameGuruUnitTests/bin/
+/GameGuru Core/Tests/GameGuruUnitTests/obj/
+/GameGuru Core/Tests/WickedContractTests/bin/
+/GameGuru Core/Tests/WickedContractTests/obj/

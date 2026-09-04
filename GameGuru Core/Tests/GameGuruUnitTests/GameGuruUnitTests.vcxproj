@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>15.0</VCProjectVersion>
+    <ProjectGuid>{1F5E9C3B-7A24-4D86-9B0C-42E7D6A8F115}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>GameGuruUnitTests</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>GameGuruUnitTests</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+    <TargetName>$(ProjectName)</TargetName>
+    <IntDir>$(ProjectDir)obj\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir)bin\$(Platform)\$(Configuration)\</OutDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+    <TargetName>$(ProjectName)</TargetName>
+    <IntDir>$(ProjectDir)obj\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir)bin\$(Platform)\$(Configuration)\</OutDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>false</SDLCheck>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua;$(ProjectDir)..\third_party\doctest;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalOptions>/FS %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>false</SDLCheck>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua;$(ProjectDir)..\third_party\doctest;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalOptions>/FS %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="LuaHost.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="LuaHost.cpp" />
+    <ClCompile Include="lua_script_tests.cpp" />
+    <ClCompile Include="lua_syntax_tests.cpp" />
+    <ClCompile Include="lua_module_misclib_tests.cpp" />
+    <ClCompile Include="lua_masterinterpreter_tests.cpp" />
+    <ClCompile Include="lua_performance_tests.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The exact Lua 5.2 runtime the game ships (vendored by DarkLUA),
+         compiled directly so product scripts run under tests with zero new
+         third-party dependencies. lua.c/luac.c are excluded: they carry
+         main() entry points. -->
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lapi.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lcode.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lctype.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\ldebug.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\ldo.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\ldump.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lfunc.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lgc.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\llex.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lmem.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lobject.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lopcodes.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lparser.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lstate.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lstring.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\ltable.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\ltm.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lundump.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lvm.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lzio.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lauxlib.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lbaselib.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\liolib.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\loslib.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\loadlib.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lcorolib.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lmathlib.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lstrlib.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\ltablib.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\third_party\doctest\doctest.h" />
+    <None Include="..\third_party\doctest\LICENSE.txt" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Test Suites">
+      <UniqueIdentifier>{5c3d8a92-4b71-4e26-9f83-1d7c5b0e6a24}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Lua Runtime">
+      <UniqueIdentifier>{8e1b4f27-6c93-4a05-bd72-3f9a2c8e5d16}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party">
+      <UniqueIdentifier>{a9f2d631-7b58-4c84-9e06-2d5b8a3f7c40}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="LuaHost.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="LuaHost.cpp" />
+    <ClCompile Include="lua_script_tests.cpp"><Filter>Test Suites</Filter></ClCompile>
+    <ClCompile Include="lua_syntax_tests.cpp"><Filter>Test Suites</Filter></ClCompile>
+    <ClCompile Include="lua_module_misclib_tests.cpp"><Filter>Test Suites</Filter></ClCompile>
+    <ClCompile Include="lua_masterinterpreter_tests.cpp"><Filter>Test Suites</Filter></ClCompile>
+    <ClCompile Include="lua_performance_tests.cpp"><Filter>Test Suites</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lapi.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lcode.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lctype.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\ldebug.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\ldo.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\ldump.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lfunc.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lgc.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\llex.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lmem.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lobject.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lopcodes.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lparser.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lstate.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lstring.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\ltable.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\ltm.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lundump.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lvm.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lzio.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lauxlib.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lbaselib.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\loadlib.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lcorolib.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lmathlib.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lstrlib.c"><Filter>Lua Runtime</Filter></ClCompile>
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\ltablib.c"><Filter>Lua Runtime</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\third_party\doctest\doctest.h"><Filter>Third Party</Filter></None>
+    <None Include="..\third_party\doctest\LICENSE.txt"><Filter>Third Party</Filter></None>
+  </ItemGroup>
+</Project>

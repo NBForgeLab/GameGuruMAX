@@ -91,6 +91,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		Performance1.psess = Performance1.psess
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GameGuruUnitTests", "Tests\GameGuruUnitTests\GameGuruUnitTests.vcxproj", "{1F5E9C3B-7A24-4D86-9B0C-42E7D6A8F115}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "WickedContractTests", "Tests\WickedContractTests\WickedContractTests.vcxproj", "{E92A6B54-8F17-4C39-9D84-6A0E5B2C7D31}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -496,7 +500,35 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DBDLLCore", "Dark Basic Pub
 		{B81553CC-39BB-4542-A379-F49D2F3A73A3}.ReleaseForSteam|x64.Build.0 = Release|x64
 		{B81553CC-39BB-4542-A379-F49D2F3A73A3}.ReleaseTEST|x64.ActiveCfg = Release|x64
 		{B81553CC-39BB-4542-A379-F49D2F3A73A3}.ReleaseTEST|x64.Build.0 = Release|x64
-	EndGlobalSection
+		{1F5E9C3B-7A24-4D86-9B0C-42E7D6A8F115}.Debug|x64.ActiveCfg = Debug|x64
+		{1F5E9C3B-7A24-4D86-9B0C-42E7D6A8F115}.Debug|x64.Build.0 = Debug|x64
+		{1F5E9C3B-7A24-4D86-9B0C-42E7D6A8F115}.DebugTEST|x64.ActiveCfg = Debug|x64
+		{1F5E9C3B-7A24-4D86-9B0C-42E7D6A8F115}.DebugTEST|x64.Build.0 = Debug|x64
+		{1F5E9C3B-7A24-4D86-9B0C-42E7D6A8F115}.Release|x64.ActiveCfg = Release|x64
+		{1F5E9C3B-7A24-4D86-9B0C-42E7D6A8F115}.Release|x64.Build.0 = Release|x64
+		{1F5E9C3B-7A24-4D86-9B0C-42E7D6A8F115}.ReleaseForEdu|x64.ActiveCfg = Release|x64
+		{1F5E9C3B-7A24-4D86-9B0C-42E7D6A8F115}.ReleaseForEdu|x64.Build.0 = Release|x64
+		{1F5E9C3B-7A24-4D86-9B0C-42E7D6A8F115}.ReleaseForEpic|x64.ActiveCfg = Release|x64
+		{1F5E9C3B-7A24-4D86-9B0C-42E7D6A8F115}.ReleaseForEpic|x64.Build.0 = Release|x64
+		{1F5E9C3B-7A24-4D86-9B0C-42E7D6A8F115}.ReleaseForSteam|x64.ActiveCfg = Release|x64
+		{1F5E9C3B-7A24-4D86-9B0C-42E7D6A8F115}.ReleaseForSteam|x64.Build.0 = Release|x64
+		{1F5E9C3B-7A24-4D86-9B0C-42E7D6A8F115}.ReleaseTEST|x64.ActiveCfg = Release|x64
+		{1F5E9C3B-7A24-4D86-9B0C-42E7D6A8F115}.ReleaseTEST|x64.Build.0 = Release|x64
+		{E92A6B54-8F17-4C39-9D84-6A0E5B2C7D31}.Debug|x64.ActiveCfg = Debug|x64
+		{E92A6B54-8F17-4C39-9D84-6A0E5B2C7D31}.Debug|x64.Build.0 = Debug|x64
+		{E92A6B54-8F17-4C39-9D84-6A0E5B2C7D31}.DebugTEST|x64.ActiveCfg = Debug|x64
+		{E92A6B54-8F17-4C39-9D84-6A0E5B2C7D31}.DebugTEST|x64.Build.0 = Debug|x64
+		{E92A6B54-8F17-4C39-9D84-6A0E5B2C7D31}.Release|x64.ActiveCfg = Release|x64
+		{E92A6B54-8F17-4C39-9D84-6A0E5B2C7D31}.Release|x64.Build.0 = Release|x64
+		{E92A6B54-8F17-4C39-9D84-6A0E5B2C7D31}.ReleaseForEdu|x64.ActiveCfg = Release|x64
+		{E92A6B54-8F17-4C39-9D84-6A0E5B2C7D31}.ReleaseForEdu|x64.Build.0 = Release|x64
+		{E92A6B54-8F17-4C39-9D84-6A0E5B2C7D31}.ReleaseForEpic|x64.ActiveCfg = Release|x64
+		{E92A6B54-8F17-4C39-9D84-6A0E5B2C7D31}.ReleaseForEpic|x64.Build.0 = Release|x64
+		{E92A6B54-8F17-4C39-9D84-6A0E5B2C7D31}.ReleaseForSteam|x64.ActiveCfg = Release|x64
+		{E92A6B54-8F17-4C39-9D84-6A0E5B2C7D31}.ReleaseForSteam|x64.Build.0 = Release|x64
+		{E92A6B54-8F17-4C39-9D84-6A0E5B2C7D31}.ReleaseTEST|x64.ActiveCfg = Release|x64
+		{E92A6B54-8F17-4C39-9D84-6A0E5B2C7D31}.ReleaseTEST|x64.Build.0 = Release|x64
+EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
