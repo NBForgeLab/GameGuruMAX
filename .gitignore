@@ -254,3 +254,6 @@ GameGuru Core/Dark Basic Public Shared/Dark Basic Pro SDK/DarkSDK/Objects/Object
 /GameGuru Core/Tests/GameGuruUnitTests/obj/
 /GameGuru Core/Tests/WickedContractTests/bin/
 /GameGuru Core/Tests/WickedContractTests/obj/
+# Generated Lua coverage dumps (rerun the suite with GG_LUA_COVERAGE=1)
+/GameGuru Core/Tests/lua_coverage*.txt
+/GameGuru Core/Tests/GameGuruUnitTests/lua_coverage*.txt
