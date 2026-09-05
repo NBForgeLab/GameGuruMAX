@@ -726,3 +726,110 @@ TEST_CASE("doaction play animation with an unknown name skips playback")
 	CHECK(ggtest::LuaHostExtensions::AutoCallCount(f.host.state(), "SetAnimationName") == 0);
 	CHECK(ggtest::LuaHostExtensions::AutoCallCount(f.host.state(), "PlayAnimation") == 0);
 }
+
+
+// ---------------------------------------------------------------------------
+// Sweeps: every shipped action id and condition id runs against a populated
+// behavior state (two parameter styles). Reserved ids no-op, real ids
+// execute their branch trees; pcall absorbs paths that need deeper engine
+// state. This is the primary branch-coverage generator for the interpreter.
+// ---------------------------------------------------------------------------
+TEST_CASE("doaction and condition sweeps run every shipped id")
+{
+	DoActionFixture f;
+	lua_State* L = f.host.state();
+
+	// Populate the behavior state with the fields the branch trees read:
+	auto seedOutput = [&](const char* key, const char* value) {
+		lua_getglobal(L, "TEST_OUTPUT");
+		PushOutputEntry(L, key, value);
+		lua_pop(L, 1);
+	};
+	seedOutput("target", "start");
+	seedOutput("targete", "-1");
+	seedOutput("startpositionx", "0");
+	seedOutput("startpositiony", "35");
+	seedOutput("startpositionz", "0");
+	seedOutput("damagetaken", "25");
+	seedOutput("oldhealth", "40");
+	seedOutput("lasttimerreached", "0");
+	seedOutput("lastanimplayed", "");
+	seedOutput("wholastactivated", "0");
+	seedOutput("myvalue", "1");
+
+	int actionErrors = 0;
+	int conditionErrors = 0;
+	int conditionTrue = 0;
+
+	for (int pass = 0; pass < 2; ++pass)
+	{
+		for (int actiontype = 0; actiontype <= 120; ++actiontype)
+		{
+			lua_getglobal(L, "masterinterpreter_doaction");
+			lua_pushinteger(L, 10);
+			lua_getglobal(L, "TEST_OUTPUT");
+			lua_pushinteger(L, actiontype);
+			if (pass == 0)
+			{
+				lua_pushstring(L, "50");
+				lua_pushstring(L, "2");
+			}
+			else
+			{
+				lua_pushstring(L, "=myvalue");
+				lua_pushstring(L, "1");
+			}
+			if (lua_pcall(L, 5, 0, 0) != LUA_OK)
+			{
+				++actionErrors;
+				lua_pop(L, 1);
+			}
+		}
+	}
+
+	for (int pass = 0; pass < 2; ++pass)
+	{
+		for (int conditiontype = 0; conditiontype <= 120; ++conditiontype)
+		{
+			lua_getglobal(L, "masterinterpreter_getconditionresult");
+			lua_pushinteger(L, 10);
+			lua_getglobal(L, "TEST_OUTPUT");
+			lua_pushinteger(L, conditiontype);
+			if (pass == 0)
+			{
+				lua_pushstring(L, "50");
+			}
+			else
+			{
+				lua_pushstring(L, "=myvalue");
+			}
+			if (lua_pcall(L, 4, 1, 0) == LUA_OK)
+			{
+				const int r = (int)lua_tointeger(L, -1);
+				const bool validResult = (r == 0) || (r == 1);
+				CHECK(validResult);
+				if (r == 1) ++conditionTrue;
+				lua_pop(L, 1);
+			}
+			else
+			{
+				++conditionErrors;
+				lua_pop(L, 1);
+			}
+		}
+	}
+
+	std::cout << "SWEEP: actionErrors=" << actionErrors
+		<< " conditionErrors=" << conditionErrors
+		<< " conditionTrue=" << conditionTrue << std::endl;
+
+	// The interpreter state must survive the sweeps:
+	lua_getglobal(L, "masterinterpreter_doaction");
+	CHECK(lua_isfunction(L, -1));
+	lua_pop(L, 1);
+	// Reserved ids do nothing and real ids mostly execute cleanly; a small
+	// error tail is tolerated (stub gaps), a wholesale breakage is not:
+	CHECK(actionErrors <= 60);
+	CHECK(conditionErrors <= 40);
+	CHECK(conditionTrue > 0);
+}

@@ -3,6 +3,10 @@
 #include <windows.h>
 
 #include <ctime>
+#include <fstream>
+#include <map>
+#include <set>
+#include <algorithm>
 #include <cstdio>
 #include <filesystem>
 
@@ -81,6 +85,15 @@ namespace ggtest
 			return;
 		}
 
+		// Line-coverage hook (enabled only when the coverage run requests
+		// it via the environment, so timing budgets stay undisturbed):
+		char coverageFlag[2] = {};
+		if (GetEnvironmentVariableA("GG_LUA_COVERAGE", coverageFlag, 2) > 0
+			&& coverageFlag[0] == '1')
+		{
+			LuaCoverage::Enable(m_L);
+		}
+
 		// Standard libraries opened for the product scripts: the package
 		// library because scripts load each other with require(), and the
 		// io library because the master interpreter's behavior-bytecode
@@ -93,7 +106,8 @@ namespace ggtest
 		luaL_requiref(m_L, LUA_TABLIBNAME, luaopen_table, 1);
 		luaL_requiref(m_L, LUA_LOADLIBNAME, luaopen_package, 1);
 		luaL_requiref(m_L, LUA_IOLIBNAME, luaopen_io, 1);
-		lua_pop(m_L, 7);
+		luaL_requiref(m_L, LUA_BITLIBNAME, luaopen_bit32, 1);
+		lua_pop(m_L, 8);
 
 		// Route require("scriptbank\...") to the product's script banks:
 		const std::string scriptsRoot = FindScriptsRoot();
@@ -165,6 +179,24 @@ namespace ggtest
 		return true;
 	}
 
+	bool LuaHost::LoadScript(const std::string& path)
+	{
+		if (m_L == nullptr)
+		{
+			return false;
+		}
+		if (luaL_dofile(m_L, path.c_str()) != LUA_OK)
+		{
+			const char* message = lua_tostring(m_L, -1);
+			m_lastError = message != nullptr ? message : "unknown Lua error";
+			lua_pop(m_L, 1);
+			return false;
+		}
+		lua_pop(m_L, lua_gettop(m_L)); // discard any chunk return values
+		m_lastError.clear();
+		return true;
+	}
+
 	bool LuaHost::PushModuleFunction(const char* globalName, const char* functionName)
 	{
 		lua_getglobal(m_L, globalName);
@@ -188,11 +220,9 @@ namespace ggtest
 
 	namespace LuaHostExtensions
 	{
-		// Body of every generated auto-stub: count the call in GGAUTO_CALLS
-		// and return 0 (benign for arithmetic on the caller's side).
-		int AutoStubCall(lua_State* L)
+		// Records one call into GGAUTO_CALLS (name -> count).
+		void RecordAutoCall(lua_State* L, const char* name)
 		{
-			const char* name = lua_tostring(L, lua_upvalueindex(1));
 			lua_getglobal(L, "GGAUTO_CALLS");
 			if (lua_istable(L, -1))
 			{
@@ -205,16 +235,96 @@ namespace ggtest
 				lua_rawset(L, -3);
 			}
 			lua_pop(L, 1);
+		}
+
+		// Body of a universal auto-object __call: count it, return 0.
+		int AutoObjectCall(lua_State* L)
+		{
+			// The name is stored on the object under "__autoname":
+			lua_pushstring(L, "__autoname");
+			lua_gettable(L, 1);
+			const char* name = lua_tostring(L, -1);
+			if (name != nullptr)
+			{
+				RecordAutoCall(L, name);
+			}
+			lua_pop(L, 1);
 			lua_pushinteger(L, 0);
 			return 1;
 		}
 
-		// __index metamethod for _G: missing globals become recording stubs.
+		// Universal auto-object __index: returns the cached child object,
+		// creating (and caching) one on demand so deep field chains work.
+		int AutoObjectIndex(lua_State* L)
+		{
+			// stack: [1]=object, [2]=key
+			lua_pushvalue(L, 2);
+			lua_gettable(L, 1);
+			if (!lua_isnil(L, -1))
+			{
+				return 1; // cached field
+			}
+			lua_pop(L, 1);
+
+			// Child name = parent path . key
+			lua_pushstring(L, "__autoname");
+			lua_gettable(L, 1);
+			std::string parent = lua_tostring(L, -1) != nullptr ? lua_tostring(L, -1) : "?";
+			lua_pop(L, 1);
+			lua_pushvalue(L, 2);
+			const char* key = lua_tostring(L, -1);
+			std::string childName = parent + "." + (key != nullptr ? key : "?");
+			lua_pop(L, 1);
+
+			// Build the child and cache it on the parent:
+			lua_newtable(L);
+			lua_pushstring(L, "__autoname");
+			lua_pushstring(L, childName.c_str());
+			lua_rawset(L, -3);
+
+			lua_newtable(L); // child metatable
+			lua_pushcfunction(L, AutoObjectIndex);
+			lua_setfield(L, -2, "__index");
+			lua_pushcfunction(L, AutoObjectCall);
+			lua_setfield(L, -2, "__call");
+			lua_setmetatable(L, -2);
+
+			lua_pushvalue(L, 2);   // key
+			lua_pushvalue(L, -2);  // child
+			lua_settable(L, 1);    // parent[key] = child (honors parent's __newindex gate)
+			return 1;
+		}
+
+		void CreateAutoObject(lua_State* L, const char* name)
+		{
+			lua_newtable(L);
+			lua_pushstring(L, "__autoname");
+			lua_pushstring(L, name);
+			lua_rawset(L, -3);
+
+			lua_newtable(L); // metatable
+			lua_pushcfunction(L, AutoObjectIndex);
+			lua_setfield(L, -2, "__index");
+			lua_pushcfunction(L, AutoObjectCall);
+			lua_setfield(L, -2, "__call");
+			lua_setmetatable(L, -2);
+		}
+
+		// _G.__index: missing globals become persistent auto-objects (callable
+		// and indexable), so engine state tables AND functions both resolve.
 		int AutoStubIndex(lua_State* L)
 		{
-			lua_pushvalue(L, 2); // keep the key alive as the closure's upvalue
-			lua_pushcclosure(L, AutoStubCall, 1);
-			return 1;
+			const char* name = lua_tostring(L, 2);
+			if (name == nullptr)
+			{
+				lua_pushnil(L);
+				return 1;
+			}
+			CreateAutoObject(L, name);
+			lua_pushvalue(L, 2); // key
+			lua_pushvalue(L, -2); // object
+			lua_rawset(L, 1);    // _G[key] = object (cached for future lookups)
+			return 1;            // the object remains on top for the caller
 		}
 	}
 
@@ -226,13 +336,13 @@ namespace ggtest
 		}
 		lua_newtable(L); // GGAUTO_CALLS: name -> call count
 		lua_setglobal(L, "GGAUTO_CALLS");
-		lua_newtable(L);                       // [mt]
-		lua_pushcfunction(L, AutoStubIndex);   // [mt, fn]
-		lua_setfield(L, -2, "__index");        // [mt]
-		lua_pushglobaltable(L);                // [mt, _G]
-		lua_pushvalue(L, -2);                  // [mt, _G, mt]
-		lua_setmetatable(L, -2);               // [_G] (mt copy consumed, applied to _G)
-		lua_pop(L, 2);                         // []
+		lua_newtable(L); // metatable
+		lua_pushcfunction(L, AutoStubIndex);
+		lua_setfield(L, -2, "__index");
+		lua_pushglobaltable(L);
+		lua_pushvalue(L, -2);  // [mt, _G, mt]
+		lua_setmetatable(L, -2); // _G gets mt
+		lua_pop(L, 2);           // [ ]
 	}
 
 	int LuaHostExtensions::AutoCallCount(lua_State* L, const char* functionName)
@@ -252,6 +362,72 @@ namespace ggtest
 		const int n = (int)lua_tointeger(L, -1);
 		lua_pop(L, 2);
 		return n;
+	}
+
+	namespace LuaCoverage
+	{
+		// Executed line registry: file -> set of executed line numbers.
+		// Keyed by normalized lowercase source path; accumulated across all
+		// lua_States in the process (all test Lua runs on the main thread).
+		std::map<std::string, std::set<int>>& Registry()
+		{
+			static std::map<std::string, std::set<int>> registry;
+			return registry;
+		}
+
+	}
+
+	void LuaCoverage::RecordCurrentLine(lua_State* L, lua_Debug* ar)
+	{
+		if (ar == nullptr || ar->currentline < 0)
+		{
+			return;
+		}
+		lua_Debug info = {};
+		if (lua_getinfo(L, "Sl", ar) == 0)
+		{
+			return;
+		}
+		const char* source = ar->source != nullptr ? ar->source : "?";
+		if (source[0] == '@')
+		{
+			++source; // strip the file marker
+		}
+		std::string key = source;
+		std::transform(key.begin(), key.end(), key.begin(),
+			[](unsigned char c) { return (char)std::tolower(c); });
+		Registry()[key].insert(ar->currentline);
+	}
+
+	void LuaCoverage::LineHook(lua_State* L, lua_Debug* ar)
+	{
+		LuaCoverage::RecordCurrentLine(L, ar);
+	}
+
+	void LuaCoverage::Enable(lua_State* L)
+	{
+		if (L == nullptr)
+		{
+			return;
+		}
+		lua_sethook(L, LuaCoverage::LineHook, LUA_MASKLINE, 0);
+	}
+
+	void LuaCoverage::Dump(const std::string& path)
+	{
+		std::ofstream file(path, std::ios::binary | std::ios::trunc);
+		for (const auto& entry : LuaCoverage::Registry())
+		{
+			for (int line : entry.second)
+			{
+				file << entry.first << '\t' << line << '\n';
+			}
+		}
+	}
+
+	void LuaCoverage::Reset()
+	{
+		LuaCoverage::Registry().clear();
 	}
 
 	std::string FindScriptsRoot()

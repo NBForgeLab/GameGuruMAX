@@ -55,6 +55,10 @@ namespace ggtest
 		// when the module or function does not exist.
 		bool PushModuleFunction(const char* globalName, const char* functionName);
 
+		// Loads and runs a script chunk; the return value (if any) is
+		// discarded. Error details land in GetLastError().
+		bool LoadScript(const std::string& path);
+
 		const std::string& GetLastError() const { return m_lastError; }
 
 	private:
@@ -77,5 +81,25 @@ namespace ggtest
 
 		// Call count recorded by the auto-stub layer for one engine function.
 		int AutoCallCount(lua_State* L, const char* functionName);
+	}
+
+	namespace LuaCoverage
+	{
+		// Installs a line hook on the state and accumulates executed
+		// "source:line" pairs product-wide (accumulates across lua_States).
+		void Enable(lua_State* L);
+
+		// Records the line currently being executed (public so custom hooks,
+		// e.g. the driver's combined line+budget hook, can contribute).
+		void RecordCurrentLine(lua_State* L, lua_Debug* ar);
+
+		// Internal line-only hook used by Enable().
+		void LineHook(lua_State* L, lua_Debug* ar);
+
+		// Writes the accumulated "file<TAB>line" pairs to a text file.
+		void Dump(const std::string& path);
+
+		// Clears accumulated data (used between coverage runs).
+		void Reset();
 	}
 }

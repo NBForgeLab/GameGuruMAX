@@ -106,6 +106,7 @@
     <ClCompile Include="lua_masterinterpreter_tests.cpp" />
     <ClCompile Include="lua_performance_tests.cpp" />
     <ClCompile Include="lua_object_scripts_tests.cpp" />
+    <ClCompile Include="lua_scriptbank_driver_tests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <!-- The exact Lua 5.2 runtime the game ships (vendored by DarkLUA),
@@ -135,6 +136,7 @@
     <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lauxlib.c" />
     <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lbaselib.c" />
     <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\liolib.c" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lbitlib.c" />
     <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\loslib.c" />
     <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\loadlib.c" />
     <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lcorolib.c" />
