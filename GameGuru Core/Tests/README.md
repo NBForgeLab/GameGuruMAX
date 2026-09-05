@@ -80,6 +80,17 @@ Lua 5.2 runtime the game uses (compiled directly from the vendored
   checks, rotation math, condition evaluation and 500-instruction
   behavior loads.
 
+* **Entity script harness** (`lua_object_scripts_tests.cpp`): drives the
+  shipped entity scripts headless with the recording auto-stub layer —
+  any undefined global function becomes a stub that counts its calls
+  (`GGAUTO_CALLS`) and returns 0, while functions whose return values the
+  scripts use are overridden with typed stubs. Covered: `sentry` (init
+  health boost, muzzle-flash discovery by name, 120-frame sweep),
+  `aircraft` (properties/init/30 frames) and `npc_control`
+  (init_name/properties/30 frames). The harness also documents the real
+  call order: per-entity tables are created by `*_init`, and level
+  settings land on the entity table where `main` re-reads them.
+
 ## Framework
 
 [doctest](https://github.com/doctest/doctest) **v2.4.12**, vendored under

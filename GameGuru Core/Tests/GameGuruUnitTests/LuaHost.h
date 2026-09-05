@@ -66,4 +66,16 @@ namespace ggtest
 	// executable, or from GGMAX_SCRIPTS_ROOT when the environment variable
 	// is set. Returns an empty string when not found.
 	std::string FindScriptsRoot();
+
+	namespace LuaHostExtensions
+	{
+		// Installs a recording auto-stub layer on the host's _G: any global
+		// function that is not defined becomes a recording stub returning 0.
+		// Calls are counted in the Lua-global table GGAUTO_CALLS
+		// (function name -> call count), readable via AutoCallCount.
+		void InstallAutoStubs(lua_State* L);
+
+		// Call count recorded by the auto-stub layer for one engine function.
+		int AutoCallCount(lua_State* L, const char* functionName);
+	}
 }

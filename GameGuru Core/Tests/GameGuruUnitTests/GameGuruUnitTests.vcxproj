@@ -105,6 +105,7 @@
     <ClCompile Include="lua_module_misclib_tests.cpp" />
     <ClCompile Include="lua_masterinterpreter_tests.cpp" />
     <ClCompile Include="lua_performance_tests.cpp" />
+    <ClCompile Include="lua_object_scripts_tests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <!-- The exact Lua 5.2 runtime the game ships (vendored by DarkLUA),

@@ -22,6 +22,7 @@
     <ClCompile Include="lua_module_misclib_tests.cpp"><Filter>Test Suites</Filter></ClCompile>
     <ClCompile Include="lua_masterinterpreter_tests.cpp"><Filter>Test Suites</Filter></ClCompile>
     <ClCompile Include="lua_performance_tests.cpp"><Filter>Test Suites</Filter></ClCompile>
+    <ClCompile Include="lua_object_scripts_tests.cpp"><Filter>Test Suites</Filter></ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lapi.c"><Filter>Lua Runtime</Filter></ClCompile>

@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include <ctime>
 #include <cstdio>
 #include <filesystem>
 
@@ -120,6 +121,21 @@ namespace ggtest
 		// The engine's entity table starts out empty:
 		lua_newtable(m_L);
 		lua_setglobal(m_L, "g_Entity");
+
+		// Minimal os table: product scripts seed their randomizers with
+		// os.time(); expose only the two harmless time functions.
+		lua_newtable(m_L);
+		lua_pushcfunction(m_L, [](lua_State* L) -> int {
+			lua_pushinteger(L, (lua_Integer)time(nullptr));
+			return 1;
+		});
+		lua_setfield(m_L, -2, "time");
+		lua_pushcfunction(m_L, [](lua_State* L) -> int {
+			lua_pushnumber(L, (lua_Number)clock() / CLOCKS_PER_SEC);
+			return 1;
+		});
+		lua_setfield(m_L, -2, "clock");
+		lua_setglobal(m_L, "os");
 	}
 
 	LuaHost::~LuaHost()
@@ -168,6 +184,74 @@ namespace ggtest
 		lua_remove(m_L, -2);
 		m_lastError.clear();
 		return true;
+	}
+
+	namespace LuaHostExtensions
+	{
+		// Body of every generated auto-stub: count the call in GGAUTO_CALLS
+		// and return 0 (benign for arithmetic on the caller's side).
+		int AutoStubCall(lua_State* L)
+		{
+			const char* name = lua_tostring(L, lua_upvalueindex(1));
+			lua_getglobal(L, "GGAUTO_CALLS");
+			if (lua_istable(L, -1))
+			{
+				lua_pushstring(L, name);
+				lua_rawget(L, -2);
+				const int n = (int)lua_tointeger(L, -1);
+				lua_pop(L, 1);
+				lua_pushstring(L, name);
+				lua_pushinteger(L, n + 1);
+				lua_rawset(L, -3);
+			}
+			lua_pop(L, 1);
+			lua_pushinteger(L, 0);
+			return 1;
+		}
+
+		// __index metamethod for _G: missing globals become recording stubs.
+		int AutoStubIndex(lua_State* L)
+		{
+			lua_pushvalue(L, 2); // keep the key alive as the closure's upvalue
+			lua_pushcclosure(L, AutoStubCall, 1);
+			return 1;
+		}
+	}
+
+	void LuaHostExtensions::InstallAutoStubs(lua_State* L)
+	{
+		if (L == nullptr)
+		{
+			return;
+		}
+		lua_newtable(L); // GGAUTO_CALLS: name -> call count
+		lua_setglobal(L, "GGAUTO_CALLS");
+		lua_newtable(L);                       // [mt]
+		lua_pushcfunction(L, AutoStubIndex);   // [mt, fn]
+		lua_setfield(L, -2, "__index");        // [mt]
+		lua_pushglobaltable(L);                // [mt, _G]
+		lua_pushvalue(L, -2);                  // [mt, _G, mt]
+		lua_setmetatable(L, -2);               // [_G] (mt copy consumed, applied to _G)
+		lua_pop(L, 2);                         // []
+	}
+
+	int LuaHostExtensions::AutoCallCount(lua_State* L, const char* functionName)
+	{
+		if (L == nullptr)
+		{
+			return 0;
+		}
+		lua_getglobal(L, "GGAUTO_CALLS");
+		if (!lua_istable(L, -1))
+		{
+			lua_pop(L, 1);
+			return 0;
+		}
+		lua_pushstring(L, functionName);
+		lua_rawget(L, -2);
+		const int n = (int)lua_tointeger(L, -1);
+		lua_pop(L, 2);
+		return n;
 	}
 
 	std::string FindScriptsRoot()

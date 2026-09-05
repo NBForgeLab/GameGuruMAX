@@ -504,3 +504,225 @@ TEST_CASE("Condition evaluator random condition is deterministic at range zero")
 	// math.random(0, 0) always returns 0, so the condition always fires:
 	CHECK(CallCondition(f.host, 10, random, "0") == 1);
 }
+
+// ---------------------------------------------------------------------------
+// doaction tests: the action executor. Uses its own fixture with the
+// recording auto-stub layer so engine calls made by actions can be counted,
+// while state writes (entity health, behavior variables) are asserted
+// directly on the entities and output_e tables.
+// ---------------------------------------------------------------------------
+#include <cstring>
+
+namespace
+{
+	struct DoActionFixture
+	{
+		ggtest::LuaHost host;
+
+		DoActionFixture()
+		{
+			ggtest::LuaHostExtensions::InstallAutoStubs(host.state());
+			const std::string scriptsRoot = ggtest::FindScriptsRoot();
+			REQUIRE(scriptsRoot.size() > 0);
+			REQUIRE(host.LoadScriptAs("MASTERINT", scriptsRoot + "/scriptbank/masterinterpreter.lua"));
+			PlaceEntity(host, 10, 0, 0, 40);
+			// The shared output_e table the actions mutate (must exist before
+			// the auto-stub layer would otherwise hand out a function):
+			lua_newtable(host.state());
+			lua_setglobal(host.state(), "TEST_OUTPUT");
+		}
+
+		// Calls the global action executor; the output_e table is kept as a
+		// global so tests can read the mutations the action makes.
+		void DoAction(int actionType, const char* param1, const char* param2 = "0")
+		{
+			lua_State* L = host.state();
+			lua_getglobal(L, "masterinterpreter_doaction");
+			lua_pushinteger(L, 10);
+			lua_getglobal(L, "TEST_OUTPUT");
+			lua_pushinteger(L, actionType);
+			lua_pushstring(L, param1);
+			lua_pushstring(L, param2);
+			REQUIRE(ProtectedPCall(L, 5, 0));
+		}
+
+		void SeedOutput(const char* key, const char* value)
+		{
+			lua_State* L = host.state();
+			lua_getglobal(L, "TEST_OUTPUT");
+			PushOutputEntry(L, key, value);
+			lua_pop(L, 1);
+		}
+
+		std::string ReadOutputString(const char* key)
+		{
+			lua_State* L = host.state();
+			lua_getglobal(L, "TEST_OUTPUT");
+			lua_getfield(L, -1, key);
+			const char* v = lua_tostring(L, -1);
+			std::string out = v != nullptr ? v : "";
+			lua_pop(L, 2);
+			return out;
+		}
+
+		double ReadOutputNumber(const char* key)
+		{
+			lua_State* L = host.state();
+			lua_getglobal(L, "TEST_OUTPUT");
+			lua_getfield(L, -1, key);
+			const double v = lua_tonumber(L, -1);
+			lua_pop(L, 2);
+			return v;
+		}
+
+		double EntityHealth()
+		{
+			lua_State* L = host.state();
+			lua_getglobal(L, "g_Entity");
+			lua_pushinteger(L, 10);
+			lua_gettable(L, -2);
+			lua_getfield(L, -1, "health");
+			const double v = lua_tonumber(L, -1);
+			lua_pop(L, 3);
+			return v;
+		}
+
+		void SetEntityStrength(double strength)
+		{
+			lua_State* L = host.state();
+			lua_getglobal(L, "g_Entity");
+			lua_pushinteger(L, 10);
+			lua_gettable(L, -2);
+			lua_pushnumber(L, strength);
+			lua_setfield(L, -2, "strength");
+			lua_pop(L, 2);
+		}
+	};
+
+	// The shipped action ids embedded in compiled behaviors:
+	int Act(ggtest::LuaHost& host, const char* constantName)
+	{
+		lua_getglobal(host.state(), constantName);
+		const int v = (int)lua_tointeger(host.state(), -1);
+		lua_pop(host.state(), 1);
+		return v;
+	}
+}
+
+TEST_CASE("doaction pins the shipped action numbering")
+{
+	DoActionFixture f;
+	// Compiled behaviors embed these ids; a renumber breaks every shipped
+	// behavior, so pin the core ones:
+	CHECK(Act(f.host, "g_masterinterpreter_act_gotostate") == 0);
+	CHECK(Act(f.host, "g_masterinterpreter_act_none") == 11);
+	CHECK(Act(f.host, "g_masterinterpreter_act_play") == 12);
+	CHECK(Act(f.host, "g_masterinterpreter_act_starttimer") == 18);
+	CHECK(Act(f.host, "g_masterinterpreter_act_settargetstart") == 30);
+	CHECK(Act(f.host, "g_masterinterpreter_act_sethealth") == 53);
+}
+
+TEST_CASE("doaction sethealth writes entity health and behavior oldhealth")
+{
+	DoActionFixture f;
+	f.SeedOutput("oldhealth", "40");
+	f.SetEntityStrength(200);
+
+	f.DoAction(Act(f.host, "g_masterinterpreter_act_sethealth"), "85");
+
+	CHECK(f.EntityHealth() == doctest::Approx(85));
+	CHECK(f.ReadOutputNumber("oldhealth") == doctest::Approx(85));
+}
+
+TEST_CASE("doaction sethealth falls back to entity strength on an invalid parameter")
+{
+	DoActionFixture f;
+	f.SetEntityStrength(200);
+
+	// tonumber("abc") is nil, so the action defaults to the entity strength:
+	f.DoAction(Act(f.host, "g_masterinterpreter_act_sethealth"), "abc");
+
+	CHECK(f.EntityHealth() == doctest::Approx(200));
+}
+
+TEST_CASE("doaction restorehealth resets health to the entity strength")
+{
+	DoActionFixture f;
+	f.SeedOutput("oldhealth", "40");
+	f.SetEntityStrength(250);
+	const int restore = Act(f.host, "g_masterinterpreter_act_restorehealth");
+
+	f.DoAction(restore, "0");
+
+	CHECK(f.EntityHealth() == doctest::Approx(250));
+	CHECK(f.ReadOutputNumber("oldhealth") == doctest::Approx(250));
+}
+
+TEST_CASE("doaction setvalue writes zero or one into the behavior variable")
+{
+	DoActionFixture f;
+	const int toZero = Act(f.host, "g_masterinterpreter_act_setvaluetozero");
+	const int toOne = Act(f.host, "g_masterinterpreter_act_setvaluetoone");
+
+	// The parameter names the behavior variable (no '=' prefix here):
+	f.DoAction(toZero, "myswitch");
+	CHECK(f.ReadOutputNumber("myswitch") == doctest::Approx(0));
+
+	f.DoAction(toOne, "myswitch2");
+	CHECK(f.ReadOutputNumber("myswitch2") == doctest::Approx(1));
+}
+
+TEST_CASE("doaction starttimer resets the once-per-threshold latch")
+{
+	DoActionFixture f;
+	f.SeedOutput("lasttimerreached", "1000");
+
+	f.DoAction(Act(f.host, "g_masterinterpreter_act_starttimer"), "0");
+
+	CHECK(f.ReadOutputNumber("lasttimerreached") == doctest::Approx(0));
+	CHECK(ggtest::LuaHostExtensions::AutoCallCount(f.host.state(), "StartTimer") >= 1);
+}
+
+TEST_CASE("doaction settargetstart repoints the behavior at its start position")
+{
+	DoActionFixture f;
+	f.SeedOutput("target", "player");
+
+	f.DoAction(Act(f.host, "g_masterinterpreter_act_settargetstart"), "0");
+
+	CHECK(f.ReadOutputString("target") == "start");
+	CHECK(f.ReadOutputNumber("recalctimer") == doctest::Approx(0));
+}
+
+TEST_CASE("doaction play animation records the animation and plays when it exists")
+{
+	DoActionFixture f;
+	const int play = Act(f.host, "g_masterinterpreter_act_play");
+
+	// Animation exists on the entity (auto-stub would return 0, so this
+	// explicit override says the name is valid):
+	lua_pushcfunction(f.host.state(), [](lua_State* L) -> int {
+		lua_pushinteger(L, 1);
+		return 1;
+	});
+	lua_setglobal(f.host.state(), "GetEntityAnimationNameExist");
+
+	f.DoAction(play, "walk");
+
+	CHECK(f.ReadOutputString("lastanimplayed") == "walk");
+	CHECK(ggtest::LuaHostExtensions::AutoCallCount(f.host.state(), "SetAnimationName") >= 1);
+	CHECK(ggtest::LuaHostExtensions::AutoCallCount(f.host.state(), "PlayAnimation") >= 1);
+}
+
+TEST_CASE("doaction play animation with an unknown name skips playback")
+{
+	DoActionFixture f;
+	const int play = Act(f.host, "g_masterinterpreter_act_play");
+
+	// Auto-stub GetEntityAnimationNameExist returns 0: the name is unknown.
+	f.DoAction(play, "no Such Anim");
+
+	CHECK(f.ReadOutputString("lastanimplayed") == "no Such Anim");
+	CHECK(ggtest::LuaHostExtensions::AutoCallCount(f.host.state(), "SetAnimationName") == 0);
+	CHECK(ggtest::LuaHostExtensions::AutoCallCount(f.host.state(), "PlayAnimation") == 0);
+}
