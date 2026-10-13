@@ -1,0 +1,9 @@
+<Project>
+  <!-- Shared public APIs use std::string_view and writable string storage.
+       Apply one language baseline to SDK producers and consumers alike. -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
+  </ItemDefinitionGroup>
+</Project>
