@@ -4999,11 +4999,11 @@ ImFont* tmpfont;
 static const ImWchar Generic_ranges_all[] =
 {
 	0x0020, 0x00FF, // Basic Latin + Latin Supplement
-	0x0100, 0x017F,	//0100 — 017F  	Latin Extended-A
-	0x0180, 0x024F,	//0180 — 024F  	Latin Extended-B
+	0x0100, 0x017F,	//0100 ï¿½ 017F  	Latin Extended-A
+	0x0180, 0x024F,	//0180 ï¿½ 024F  	Latin Extended-B
 	0,
 };
-//PE: Optimize exclude Phonetic Extensions (1D00 — 1D7F) , phonetic lettering (japan,china), Greak/Latin Extended, block elements,Dingbats,...
+//PE: Optimize exclude Phonetic Extensions (1D00 ï¿½ 1D7F) , phonetic lettering (japan,china), Greak/Latin Extended, block elements,Dingbats,...
 static const ImWchar Generic_ranges_everything[] =
 {
    0x0020, 0x07FF, // unicode 0x800-0x900 not defined so exclude from here.
@@ -6229,7 +6229,7 @@ void GetMainEntityList(char* folder_s, char* rel_s, void *pFolder, char* folder_
 						// ZJ: Got heap corruption error here.
 						//sCheck = find;
 						cStr sFind(find);
-						strcpy(sCheck.Get(), sFind.Get());
+						sCheck = sFind;
 						//sCheck = sCheck + cstr("\\") + sName;
 					}
 					sCheck = sCheck.Lower();
@@ -6567,7 +6567,7 @@ void RefreshEntityFolder(char* folder_s, void *pFolder)
 						// ZJ: Got a heap corruption error here.
 						//sCheck = find;
 						cStr sFind(find);
-						strcpy(sCheck.Get(), sFind.Get());
+						sCheck = sFind;
 						//sCheck = sCheck + cstr("\\") + sName;
 					}
 					sCheck = sCheck.Lower();
@@ -6916,7 +6916,8 @@ void ParseLuaScriptWithElementID(entityeleproftype *tmpeleprof, char * script, i
 		//Activate Propertie Variables.
 		bFirstLine = false;
 		//while [ , collect all variables.
-		char *find = tmpeleprof->PropertiesVariable.VariableDescription.Get();
+		std::string descriptionScratch = tmpeleprof->PropertiesVariable.VariableDescription.str();
+		char *find = descriptionScratch.data();
 		char *SectionDescription = find;
 		while ((find = (char *)pestrcasestr(find, "[")) && tmpeleprof->PropertiesVariable.iVariables < MAXPROPERTIESVARIABLES)
 		{
@@ -8296,7 +8297,7 @@ int DisplayLuaDescription(entityeleproftype *tmpeleprof)
 									ImGui::PushID(91679 + i);
 									if (ImGui::Selectable(title))
 									{
-										strcpy(tmpeleprof->ifused_s.Get(), Storyboard.Nodes[i].level_name);
+										tmpeleprof->ifused_s = Storyboard.Nodes[i].level_name;
 									}
 									ImGui::PopID();
 								}
@@ -8307,7 +8308,7 @@ int DisplayLuaDescription(entityeleproftype *tmpeleprof)
 					else if (preview && stricmp(preview, "Use Storyboard Logic") == 0)
 					{
 						// Ensure that ifused_s gets wiped so that the next level in storyboard logic will be used, instead of specific level
-						strcpy(tmpeleprof->ifused_s.Get(), "");
+						tmpeleprof->ifused_s.clear();
 					}
 				}
 			}
@@ -9230,7 +9231,7 @@ void coreResetIMGUIFunctionalityPrefs(void)
 {
 	// this is called when MAXVERSION incremented
 	// and restores/resets all flags so that each NEW build
-	// provides users with a view of the STANDARD USER MOD£
+	// provides users with a view of the STANDARD USER MODï¿½
 	// not advanced or developer tools modes
 	pref.current_style = 25; // 0
 	pref.bHideTutorials = false;

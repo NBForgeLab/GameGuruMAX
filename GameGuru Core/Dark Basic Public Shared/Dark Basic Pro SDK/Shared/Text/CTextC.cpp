@@ -1,18 +1,17 @@
 //
-// Text Code (Module Core)
+// Text Code (Module Core) - Modernized
 //
 
 // Includes
 #include "stdio.h"
+#include <string>
+#include <vector>
 #include "ctextc.h"
 #include ".\..\..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\Error\CError.h"
 #include "globstruct.h"
 
 // Defines
 #define RETURNSTRONGPOOLMAX 40
-
-// Externs
-//extern PTR_FuncCreateStr g_pCreateDeleteStringFunction;
 
 // Globals
 char*			m_szTokenString = NULL;
@@ -27,32 +26,45 @@ char ReturnString[20][1024];
 
 // Module Utility Functions
 
-//PE: Missing constructor.
 void InitCTextC( void )
 {
 	if (!m_szTokenString)
 	{
-		m_dwTokenStringSize = 100;
-		m_szTokenString = new char[100];
-		memset(m_szTokenString, 0, sizeof(m_szTokenString));
+		m_dwTokenStringSize = 1024;
+		m_szTokenString = new char[1024];
+		memset(m_szTokenString, 0, 1024);
+	}
+	if (!m_pTEXTWorkString)
+	{
+		m_dwTEXTWorkStringSize = 2048;
+		m_pTEXTWorkString = new char[2048];
+		memset(m_pTEXTWorkString, 0, 2048);
 	}
 }
 
 char* GetReturnStringFromTEXTWorkString(char* WorkString = m_pTEXTWorkString)
 {
-	char* pReturnString=NULL;
-	if(WorkString)
+	if (WorkString)
 	{
-		DWORD dwSize=strlen(WorkString);
-		pReturnString = g_szReturnStringPool[g_iReturnStringPoolCount];
-		if ( ++g_iReturnStringPoolCount >= RETURNSTRONGPOOLMAX ) g_iReturnStringPoolCount = 0;
-		if(WorkString)
-			strcpy(pReturnString, WorkString);
-		else
-			strcpy(pReturnString, "");
-		return pReturnString;
-	}	
-	return "";
+		static thread_local std::string s_returnPool[RETURNSTRONGPOOLMAX];
+		static thread_local size_t s_returnPoolIndex = 0;
+
+		size_t slot = s_returnPoolIndex;
+		s_returnPoolIndex = (s_returnPoolIndex + 1) % RETURNSTRONGPOOLMAX;
+
+		s_returnPool[slot] = WorkString;
+
+		// Maintain legacy pool boundedly (max 1023 bytes) for binary/symbol inspection
+		size_t legacySlot = (size_t)(g_iReturnStringPoolCount >= 0 && g_iReturnStringPoolCount < RETURNSTRONGPOOLMAX ? g_iReturnStringPoolCount : 0);
+		if (++g_iReturnStringPoolCount >= RETURNSTRONGPOOLMAX) g_iReturnStringPoolCount = 0;
+		size_t copyLen = strlen(WorkString);
+		if (copyLen >= 1024) copyLen = 1023;
+		memcpy(g_szReturnStringPool[legacySlot], WorkString, copyLen);
+		g_szReturnStringPool[legacySlot][copyLen] = '\0';
+
+		return s_returnPool[slot].data();
+	}
+	return const_cast<char*>("");
 }
 
 void ValidateWorkStringBySize ( unsigned int dwSize )
@@ -61,18 +73,15 @@ void ValidateWorkStringBySize ( unsigned int dwSize )
 	{
 		if (m_dwTEXTWorkStringSize < dwSize)
 		{
-			if (m_pTEXTWorkString)
-			{
-				delete[] m_pTEXTWorkString;
-				m_pTEXTWorkString = NULL;
-			}
+			delete[] m_pTEXTWorkString;
+			m_pTEXTWorkString = NULL;
 		}
 	}
 
 	// create new work string of good size
 	if ( m_pTEXTWorkString==NULL )
 	{
-		m_dwTEXTWorkStringSize = dwSize+1;
+		m_dwTEXTWorkStringSize = dwSize + 512;
 		m_pTEXTWorkString = new char[m_dwTEXTWorkStringSize];
 		memset ( m_pTEXTWorkString, 0, m_dwTEXTWorkStringSize );
 	}
@@ -80,8 +89,7 @@ void ValidateWorkStringBySize ( unsigned int dwSize )
 
 void ValidateWorkString(char* pString)
 {
-	// Size from string
-	if ( pString ) ValidateWorkStringBySize ( strlen(pString)+1 );
+	if ( pString ) ValidateWorkStringBySize ( (unsigned int)strlen(pString) + 1 );
 }
 
 // Module Functions
@@ -96,7 +104,7 @@ int	Asc ( char* dwSrcStr )
 
 char* Bin ( char* pDestStr, int iValue )
 {
-	// Work string
+	ValidateWorkStringBySize(64);
 	char* text=m_pTEXTWorkString;
 	int t=0;
 	text[t++]='%';
@@ -110,37 +118,33 @@ char* Bin ( char* pDestStr, int iValue )
 	}
 	text[t]=0;
 
-	// Create and return string
-	if(pDestStr) g_pGlob->CreateDeleteString((char**)&pDestStr, 0);
+	if(pDestStr && g_pGlob && g_pGlob->CreateDeleteString) g_pGlob->CreateDeleteString((char**)&pDestStr, 0);
 	char* pReturnString=GetReturnStringFromTEXTWorkString();
 	return pReturnString;
 }
 
 char* Chr ( int iValue )
 {
-	// Work string
-	m_pTEXTWorkString[0]=iValue;
+	ValidateWorkStringBySize(4);
+	m_pTEXTWorkString[0]=(char)iValue;
 	m_pTEXTWorkString[1]=0;
 
-	// Create and return string
 	char* pReturnString=GetReturnStringFromTEXTWorkString();
 	return pReturnString;
 }
 
 char* Hex ( char* pDestStr, int iValue )
 {
-	// Work string
+	ValidateWorkStringBySize(64);
 	wsprintf(m_pTEXTWorkString, "%X", iValue);
 
-	// Create and return string
-	if(pDestStr) g_pGlob->CreateDeleteString((char**)&pDestStr, 0);
+	if(pDestStr && g_pGlob && g_pGlob->CreateDeleteString) g_pGlob->CreateDeleteString((char**)&pDestStr, 0);
 	char* pReturnString=GetReturnStringFromTEXTWorkString();
 	return pReturnString;
 }
 
 char* Left ( char* szText, int iValue )
 {
-	// Work string
 	ValidateWorkString ( (char*)szText );
 	char* text=m_pTEXTWorkString;
 	if(szText)
@@ -154,7 +158,6 @@ char* Left ( char* szText, int iValue )
 		if(iValue<=0)
 			strcpy(text, "");
 
-	// Create and return string
 	char* pReturnString=GetReturnStringFromTEXTWorkString();
 	return pReturnString;
 }
@@ -162,14 +165,13 @@ char* Left ( char* szText, int iValue )
 int Len ( char* dwSrcStr )
 {
 	if(dwSrcStr)
-		return strlen(dwSrcStr);
+		return (int)strlen(dwSrcStr);
 	else
 		return 0;
 }
 
 char* Lower ( char* szText )
 {
-	// Work string
 	ValidateWorkString ( (char*)szText );
 	if(szText)
 		strcpy(m_pTEXTWorkString, (char*)szText);
@@ -178,14 +180,12 @@ char* Lower ( char* szText )
 
 	_strlwr(m_pTEXTWorkString);
 
-	// Create and return string
 	char* pReturnString=GetReturnStringFromTEXTWorkString();
 	return pReturnString;
 }
 
 char* Mid ( char* szText, int iValue )
 {
-	// Work string
 	ValidateWorkString ( szText );
 	char character;
 	char* text = m_pTEXTWorkString;
@@ -195,7 +195,7 @@ char* Mid ( char* szText, int iValue )
 		strcpy_s(text, 2, "");
 
 	unsigned int index = iValue;
-	if(index>0 && index<=strlen(text))
+	if(index>0 && index<=(unsigned int)strlen(text))
 	{
 		character=text[index-1];	
 		text[0]=character;
@@ -204,14 +204,12 @@ char* Mid ( char* szText, int iValue )
 	else
 		text[0]=0;
 
-	// Create and return string
 	char* pReturnString=GetReturnStringFromTEXTWorkString();
 	return pReturnString;
 }
 
 char* Right ( char* szText, int iValue )
 {
-	// Work string
 	ValidateWorkString ( (char*)szText );
 	char* text=m_pTEXTWorkString;
 	if(szText)
@@ -220,7 +218,7 @@ char* Right ( char* szText, int iValue )
 		strcpy(text, "");
 
 	int w = 0;
-	int length = strlen(text);
+	int length = (int)strlen(text);
 	int rightmost = length-iValue;
 	if(rightmost>=0 && rightmost<=length)
 	{
@@ -232,46 +230,41 @@ char* Right ( char* szText, int iValue )
 		if(rightmost>length)
 			strcpy(text, "");
 		
-	// Create and return string
 	char* pReturnString=GetReturnStringFromTEXTWorkString();
 	return pReturnString;
 }
 
 char* Str ( float fValue )
 {
-	// Work string
+	ValidateWorkStringBySize(64);
 	sprintf(m_pTEXTWorkString, "%.12g", fValue);
 
-	// Create and return string
 	char* pReturnString=GetReturnStringFromTEXTWorkString();
 	return pReturnString;
 }
 
-char* StrEx	( float fValue, int iDecPlaces )
+char* StrEx ( float fValue, int iDecPlaces )
 {
-	// Work string
+	ValidateWorkStringBySize(64 + (iDecPlaces > 0 ? iDecPlaces : 0));
 	char format[32];
 	sprintf(format, "%%.%df", iDecPlaces );
 	sprintf(m_pTEXTWorkString, format, fValue);
 
-	// Create and return string
 	char* pReturnString=GetReturnStringFromTEXTWorkString();
 	return pReturnString;
 }
 
 char* Str ( int iValue )
 {
-	// Work string
+	ValidateWorkStringBySize(64);
 	if ( m_pTEXTWorkString ) sprintf(m_pTEXTWorkString, "%d", iValue);
 
-	// Create and return string
 	char* pReturnString=GetReturnStringFromTEXTWorkString();
 	return pReturnString;
 }
 
 char* Upper ( char* szText )
 {
-	// Work string
 	ValidateWorkString ( (char*)szText );
 	if(szText)
 		strcpy(m_pTEXTWorkString, (char*)szText);
@@ -280,7 +273,6 @@ char* Upper ( char* szText )
 
 	_strupr(m_pTEXTWorkString);
 
-	// Create and return string
 	char* pReturnString=GetReturnStringFromTEXTWorkString();
 	return pReturnString;
 }
@@ -301,52 +293,48 @@ LONGLONG ValR ( unsigned int dwSrcStr )
 
 char* StrDouble ( char* pDestStr, double dValue )
 {
-	// Work string
+	ValidateWorkStringBySize(64);
 	sprintf(m_pTEXTWorkString, "%.16g", dValue);
 
-	// Create and return string
-	if(pDestStr) g_pGlob->CreateDeleteString((char**)&pDestStr, 0);
+	if(pDestStr && g_pGlob && g_pGlob->CreateDeleteString) g_pGlob->CreateDeleteString((char**)&pDestStr, 0);
 	char* pReturnString=GetReturnStringFromTEXTWorkString();
 	return pReturnString;
 }
 
 char* StrDoubleInt ( char* pDestStr, long long lValue )
 {
-	// Work string
+	ValidateWorkStringBySize(64);
 	sprintf(m_pTEXTWorkString, "%I64d", lValue);
 
-	// Create and return string
-	if(pDestStr) g_pGlob->CreateDeleteString((char**)&pDestStr, 0);
+	if(pDestStr && g_pGlob && g_pGlob->CreateDeleteString) g_pGlob->CreateDeleteString((char**)&pDestStr, 0);
 	char* pReturnString=GetReturnStringFromTEXTWorkString();
 	return pReturnString;
 }
 
-//PE: Never freed.
-
 char* SetupString ( char* szInput )
 {
-	char* pReturn = NULL;
+	if (!szInput) return const_cast<char*>("");
 
-	currentringbuffer = currentringbuffer + 1;
-	if (currentringbuffer > 19)
-		currentringbuffer = 0;
+	static thread_local std::string s_setupPool[20];
+	static thread_local size_t s_setupIndex = 0;
 
-	unsigned int dwSize  = strlen ( szInput );
-	if(dwSize < 1024)
-		pReturn = &ReturnString[currentringbuffer][0];
-	else
-		g_pGlob->CreateDeleteString((char**) &pReturn, dwSize + 1 );
-	if ( !pReturn ) RunTimeError ( RUNTIMEERROR_NOTENOUGHMEMORY );	
-	memcpy ( pReturn, szInput, dwSize );
-	pReturn [ dwSize ] = 0;
-	return pReturn;
+	s_setupIndex = (s_setupIndex + 1) % 20;
+	s_setupPool[s_setupIndex] = szInput;
+
+	currentringbuffer = (currentringbuffer + 1) % 20;
+	size_t len = strlen(szInput);
+	if (len >= 1024) len = 1023;
+	memcpy(&ReturnString[currentringbuffer][0], szInput, len);
+	ReturnString[currentringbuffer][len] = '\0';
+
+	return s_setupPool[s_setupIndex].data();
 }
 
 char* SetupStringOLD(char* szInput)
 {
 	char* pReturn = NULL;
-	unsigned int dwSize = strlen(szInput);
-	g_pGlob->CreateDeleteString((char**)&pReturn, dwSize + 1);
+	unsigned int dwSize = (unsigned int)strlen(szInput);
+	if (g_pGlob && g_pGlob->CreateDeleteString) g_pGlob->CreateDeleteString((char**)&pReturn, dwSize + 1);
 	if (!pReturn) RunTimeError(RUNTIMEERROR_NOTENOUGHMEMORY);
 	memcpy(pReturn, szInput, dwSize);
 	pReturn[dwSize] = 0;
@@ -355,74 +343,81 @@ char* SetupStringOLD(char* szInput)
 
 void Reverse ( char* dwA )
 {
-	strrev ( dwA );
+	if (dwA) strrev ( dwA );
 }
 
-//PE: Spaces never free the mem. so new function.
 char* Spaces2(int iSpaces)
 {
-	if (!g_pGlob->CreateDeleteString) return(" ");
-	if(iSpaces > 255) return(" ");
-	currentringbuffer = currentringbuffer + 1;
-	if (currentringbuffer > 19)
-		currentringbuffer = 0;
-	if (iSpaces < 0)
-	{
-		char* pReturnString = &ReturnString[currentringbuffer][0];
-		pReturnString[0] = 0;
-		return pReturnString;
-	}
+	if (iSpaces < 0) iSpaces = 0;
+	if (iSpaces > 65536) iSpaces = 65536;
 
-	// Create and return string
-	char* pReturnString = &ReturnString[currentringbuffer][0];
-	memset((char*)pReturnString, 32, iSpaces);
-	pReturnString[iSpaces] = 0;
-	return pReturnString;
+	static thread_local std::string s_spacesPool[20];
+	static thread_local size_t s_spacesIndex = 0;
+
+	s_spacesIndex = (s_spacesIndex + 1) % 20;
+	s_spacesPool[s_spacesIndex].assign(iSpaces, ' ');
+
+	currentringbuffer = (currentringbuffer + 1) % 20;
+	size_t legSpaces = iSpaces < 1023 ? iSpaces : 1023;
+	memset(&ReturnString[currentringbuffer][0], 32, legSpaces);
+	ReturnString[currentringbuffer][legSpaces] = '\0';
+
+	return s_spacesPool[s_spacesIndex].data();
 }
 
 char* Spaces ( int iSpaces )
 {
-	if (!g_pGlob->CreateDeleteString) return(" ");
+	if (!g_pGlob || !g_pGlob->CreateDeleteString) return const_cast<char*>(" ");
 	if ( iSpaces < 0 )
 	{
 		char* pReturnString=NULL;
 		g_pGlob->CreateDeleteString((char**)&pReturnString, 2 );
-		memset((char*)pReturnString, 32, 2);
-		pReturnString [ 0 ] = 0;
-		pReturnString [ 1 ] = 0;
+		if (pReturnString)
+		{
+			pReturnString [ 0 ] = 0;
+			pReturnString [ 1 ] = 0;
+		}
 		return pReturnString;	
 	}
 
-	// Create and return string
 	char* pReturnString=NULL;
 	g_pGlob->CreateDeleteString((char**)&pReturnString, iSpaces+1 );
-	memset((char*)pReturnString, 32, iSpaces);
-	pReturnString[iSpaces]=0;
+	if (pReturnString)
+	{
+		memset((char*)pReturnString, 32, iSpaces);
+		pReturnString[iSpaces]=0;
+	}
 	return pReturnString;
 }
 
 int FindFirstChar ( char* dwSource, char* dwChar )
 {
+	if (!dwSource || !dwChar) return 0;
 	char* pInt    = dwChar;
 	char  pIntA   = *pInt;
 	char* pFirst  = strchr ( dwSource, ( int ) pIntA );
-	int   iResult = pFirst - dwSource + 1;
+	if (!pFirst) return 0;
+	int   iResult = (int)(pFirst - dwSource + 1);
 	return iResult;
 }
 
 int FindLastChar ( char* dwSource, char* dwChar )
 {
+	if (!dwSource || !dwChar) return 0;
 	char* pInt    = dwChar;
 	char  pIntA   = *pInt;
 	char* pFirst  = strrchr ( dwSource, ( int ) pIntA );
-	int   iResult = pFirst - dwSource + 1;
+	if (!pFirst) return 0;
+	int   iResult = (int)(pFirst - dwSource + 1);
 	return iResult;
 }
 
 int FindSubString ( char* dwSource, char* dwString )
 {
+	if (!dwSource || !dwString) return 0;
 	char* pFirst  = strstr ( dwSource, dwString );
-	int   iResult = pFirst - dwSource + 1;
+	if (!pFirst) return 0;
+	int   iResult = (int)(pFirst - dwSource + 1);
 	return iResult;
 }
 
@@ -431,47 +426,37 @@ char* FirstToken ( char* dwSource, char* dwDelim )
     char* szSource = dwSource;
     char* szDelim  = dwDelim;
 
-    // If the delimiter an empty string, use a space
     if (szDelim == 0 || szDelim[0] == 0)
     {
         szDelim = " ";
     }
 
-    // If there's a string, copy it to the temp area
     if ( szSource && szSource[0] )
     {
-        // Get length, including null terminator
-        unsigned int dwLength = strlen( szSource ) + 1;
+        unsigned int dwLength = (unsigned int)strlen( szSource ) + 1;
 
-        // If the temp area isn't large enough, make it so
-        if ( dwLength > m_dwTokenStringSize )
+        if ( dwLength > m_dwTokenStringSize || !m_szTokenString )
         {
-            // double the allocation is not enough, must use dwLength
-            m_dwTokenStringSize = dwLength + 1;
-
-			// free old string and create larger one
+            m_dwTokenStringSize = dwLength + 256;
             delete[] m_szTokenString;
             m_szTokenString = new char[ m_dwTokenStringSize ];
-			memset ( m_szTokenString, 0, sizeof(m_szTokenString) );
+			memset ( m_szTokenString, 0, m_dwTokenStringSize );
         }
 
-        // Copy the source string into the temp area
         memcpy( m_szTokenString, szSource, dwLength );
     }
     else
     {
-		//PE: Make sure we have a valid token string.
 		if (!m_szTokenString)
 		{
 			m_dwTokenStringSize = 256;
 			m_szTokenString = new char[m_dwTokenStringSize+1];
-			memset(m_szTokenString, 0, sizeof(m_szTokenString));
+			memset(m_szTokenString, 0, m_dwTokenStringSize+1);
 		}
         m_szTokenString[ 0 ] = 0;
-		return SetupString(""); //Just empty.
+		return SetupString("");
     }
 
-	// free old string and create new one
     char* szToken = strtok ( m_szTokenString, szDelim );
     if ( szToken )
     {
@@ -484,13 +469,11 @@ char* NextToken ( char* dwDelim )
 {
     char* szDelim  = dwDelim;
 
-    // If the delimiter an empty string, use a space
     if (szDelim == 0 || szDelim[0] == 0)
     {
         szDelim = " ";
     }
 
-	// free old string and create new one
 	char* szToken = strtok ( NULL, szDelim );
     if ( szToken )
     {
