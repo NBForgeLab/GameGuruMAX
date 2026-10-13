@@ -8,11 +8,13 @@
 #ifndef __DARKLUA_H__
 #define __DARKLUA_H__
 
-extern "C" {
-#include ".\..\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lua.h"
-#include ".\..\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lualib.h"
-#include ".\..\Dark Basic Pro SDK\DarkSDKMore\DarkLUA\lua\lauxlib.h"
-}
+#include <string>
+
+struct lua_State;
+
+#include "DarkLuaStrings.h"
+
+
 
 /*
 #ifdef DARKLUA_EXPORTS
@@ -124,7 +126,10 @@ DARKLUA_API float LuaGetFloat ( LPSTR pString );
 DARKLUA_API float LuaReturnFloat ( int id );
 DARKLUA_API float LuaReturnFloat(void);
 
-DARKLUA_API void LuaGetString(LPSTR pA, LPSTR pB);
+#if defined(__cplusplus) && (__cplusplus >= 201703L || (defined(_MSVC_LANG) && _MSVC_LANG >= 201703L))
+DARKLUA_API void LuaGetString(std::string_view globalName, char* pDest, size_t destSize);
+DARKLUA_API std::string LuaGetStringSafe(std::string_view globalName);
+#endif
 //DARKLUA_API DWORD LuaGetString ( DWORD pOldString, LPSTR pString , int id );
 //DARKLUA_API DWORD LuaGetString ( DWORD pOldString, LPSTR pString );
 //DARKLUA_API DWORD LuaReturnString ( DWORD pOldString, int id );

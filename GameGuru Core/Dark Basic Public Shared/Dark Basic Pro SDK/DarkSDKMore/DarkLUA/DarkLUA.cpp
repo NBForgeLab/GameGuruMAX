@@ -151,350 +151,7 @@ luaState** ppLuaStates = NULL;
 
 //=============
 
-struct luaMessage
-{
-	luaMessage() { strcpy ( msgDesc , "" ); msgIndex = 0; msgInt = 0; msgFloat = 0; strcpy ( msgString , "" ); }
-	char msgDesc[256];
-	int msgIndex;
-	int msgInt;
-	float msgFloat;
-	char msgString[256];
-};
-
-luaMessage currentMessage;
-
-int luaMessageCount = 0;
-int maxLuaMessages = 0;
-luaMessage** ppLuaMessages = NULL;
-
-// extra debug info if runtime happens from a LUA script command call
-thread_local lua_State* g_CurrentLuaState = nullptr;
-//struct LuaStateGuard
-//{
-//	lua_State* prev;
-//	LuaStateGuard(lua_State* L) : prev(g_CurrentLuaState) { g_CurrentLuaState = L; }
-//	~LuaStateGuard() { g_CurrentLuaState = prev; }
-//};
-//inline int LuaGetTopAndSetState(lua_State* L)
-//{
-//	return lua_gettop(L);
-//}
-//#define LUA_BEGIN(L) LuaStateGuard _luaGuard(L)
-//#define LUA_GETTOP(L) (LUA_BEGIN(L), lua_gettop(L))
-static int LUA_GETTOP(lua_State* L)
-{
-	g_CurrentLuaState = L;
-	return lua_gettop(L);
-}
-
-//=============
-
- int LuaSendMessage(lua_State *L)
- {
-	 lua = L;
-
-	/* get number of arguments */
-	int n = LUA_GETTOP(L);
-	int i;
-
-	/* loop through each argument */
-	for (i = 1; i <= n; i++)
-	{
-		luaMessageCount++;
-
-		if ( maxLuaMessages == 0 )
-		{
-			strcpy ( currentMessage.msgDesc, "" );
-			currentMessage.msgFloat = 0.0f;
-			currentMessage.msgIndex = 0;
-			currentMessage.msgInt = 0;
-			strcpy ( currentMessage.msgString, "" );
-
-			maxLuaMessages = 100;
-			ppLuaMessages = new luaMessage*[maxLuaMessages];
-
-			for ( int c = 0 ; c < maxLuaMessages ; c++ )
-				ppLuaMessages[c] = NULL;
-		}
-
-		if ( luaMessageCount > maxLuaMessages )
-		{
-			luaMessage** ppBigger = NULL;
-			ppBigger = new luaMessage*[luaMessageCount+100];
-
-			for ( int c = 0; c < luaMessageCount; c++ )
-			 ppBigger [ c ] = ppLuaMessages [ c ];
-
-			delete [ ] ppLuaMessages;
-
-			ppLuaMessages = ppBigger;
-
-			for ( int c = maxLuaMessages; c < maxLuaMessages+100; c++ )
-				ppLuaMessages[c] = NULL;
-
-			maxLuaMessages += 100;
-		}
-
-		if ( ppLuaMessages[luaMessageCount-1] == NULL )
-		{
-	  
-			luaMessage* msg = new luaMessage();
-
-			strcpy ( msg->msgDesc , lua_tostring(L, i) );
-			msg->msgIndex = 0;
-			msg->msgFloat = 0;
-			msg->msgInt = 0;
-			strcpy ( msg->msgString , "" );
-			ppLuaMessages[luaMessageCount-1] = msg;
-		}
-	}
-
-	 return 0;
- }
-
- int LuaSendMessageI(lua_State *L)
- {
-	 lua = L;
-
-	/* get number of arguments */
-	int n = LUA_GETTOP(L);
-	int i;
-
-	if ( n != 2 && n != 3 )
-	{
-		//MessageBox(NULL, "SendMessageI takes 2 or 3 params", "LUA ERROR", MB_TOPMOST | MB_OK);
-		return 0;
-	}
-
-	luaMessageCount++;
-
-	/* loop through each argument */
-	for (i = 1; i <= n; i++)
-	{
-		if ( maxLuaMessages == 0 )
-		{
-			strcpy ( currentMessage.msgDesc, "" );
-			currentMessage.msgIndex = 0;
-			currentMessage.msgFloat = 0.0f;
-			currentMessage.msgInt = 0;
-			strcpy ( currentMessage.msgString, "" );
-
-			maxLuaMessages = 100;
-			ppLuaMessages = new luaMessage*[maxLuaMessages];
-
-			for ( int c = 0 ; c < maxLuaMessages ; c++ )
-				ppLuaMessages[c] = NULL;
-		}
-
-		if ( luaMessageCount > maxLuaMessages )
-		{
-			luaMessage** ppBigger = NULL;
-			ppBigger = new luaMessage*[luaMessageCount+100];
-
-			for ( int c = 0; c < luaMessageCount; c++ )
-			 ppBigger [ c ] = ppLuaMessages [ c ];
-
-			delete [ ] ppLuaMessages;
-
-			ppLuaMessages = ppBigger;
-
-			for ( int c = maxLuaMessages; c < maxLuaMessages+100; c++ )
-				ppLuaMessages[c] = NULL;
-
-			maxLuaMessages += 100;
-		}
-
-		if ( ppLuaMessages[luaMessageCount-1] == NULL )
-		{
-	  
-			luaMessage* msg = new luaMessage();
-
-			strcpy ( msg->msgDesc , lua_tostring(L, i) );
-			msg->msgFloat = 0;
-			msg->msgInt = 0;
-			msg->msgIndex = 0;
-			strcpy ( msg->msgString , "" );
-			ppLuaMessages[luaMessageCount-1] = msg;
-
-			/*if ( strcmp ( msg->msgDesc , "setentityhealth" ) == 0 )
-			{
-				int dave = 1;
-			}*/
-		}
-		else
-		{
-			if ( n == 3 && i == 2 )
-				ppLuaMessages[luaMessageCount-1]->msgIndex = (int)lua_tonumber( L , i );
-			else
-				ppLuaMessages[luaMessageCount-1]->msgInt = (int)lua_tonumber( L , i );
-		}
-	}
-
-	 return 0;
- }
-
-  int LuaSendMessageF(lua_State *L)
- {
-	 lua = L;
-
-	/* get number of arguments */
-	int n = LUA_GETTOP(L);
-	int i;
-
-	if ( n != 2 && n != 3 )
-	{
-		//MessageBox(NULL, "SendMessageI takes 2 or 3 params", "LUA ERROR", MB_TOPMOST | MB_OK);
-		return 0;
-	}
-
-	luaMessageCount++;
-
-	/* loop through each argument */
-	for (i = 1; i <= n; i++)
-	{
-
-		if ( maxLuaMessages == 0 )
-		{
-			strcpy ( currentMessage.msgDesc, "" );
-			currentMessage.msgFloat = 0.0f;
-			currentMessage.msgInt = 0;
-			currentMessage.msgIndex = 0;
-			strcpy ( currentMessage.msgString, "" );
-
-			maxLuaMessages = 100;
-			ppLuaMessages = new luaMessage*[maxLuaMessages];
-
-			for ( int c = 0 ; c < maxLuaMessages ; c++ )
-				ppLuaMessages[c] = NULL;
-		}
-
-		if ( luaMessageCount > maxLuaMessages )
-		{
-			luaMessage** ppBigger = NULL;
-			ppBigger = new luaMessage*[luaMessageCount+100];
-
-			for ( int c = 0; c < luaMessageCount; c++ )
-			 ppBigger [ c ] = ppLuaMessages [ c ];
-
-			delete [ ] ppLuaMessages;
-
-			ppLuaMessages = ppBigger;
-
-			for ( int c = maxLuaMessages; c < maxLuaMessages+100; c++ )
-				ppLuaMessages[c] = NULL;
-
-			maxLuaMessages += 100;
-		}
-
-		if ( ppLuaMessages[luaMessageCount-1] == NULL )
-		{
-	  
-			luaMessage* msg = new luaMessage();
-
-			strcpy ( msg->msgDesc , lua_tostring(L, i) );
-			msg->msgFloat = 0;
-			msg->msgInt = 0;
-			msg->msgIndex = 0;
-			strcpy ( msg->msgString , "" );
-			ppLuaMessages[luaMessageCount-1] = msg;
-		}
-		else
-		{
-
-			if ( n == 3 && i == 2 )
-				ppLuaMessages[luaMessageCount-1]->msgIndex = (int)lua_tonumber( L , i );
-			else
-				ppLuaMessages[luaMessageCount-1]->msgFloat = (float)lua_tonumber( L , i );
-		}
-	}
-
-	 return 0;
- }
-
- int LuaSendMessageS(lua_State *L)
- {
-	 lua = L;
-
-	/* get number of arguments */
-	int n = LUA_GETTOP(L);
-	int i;
-
-	if ( n != 2 && n != 3 )
-	{
-		//MessageBox(NULL, "SendMessageI takes 2 or 3 params", "LUA ERROR", MB_TOPMOST | MB_OK);
-		return 0;
-	}
-
-	luaMessageCount++;
-
-	/* loop through each argument */
-	for (i = 1; i <= n; i++)
-	{
-
-		if ( maxLuaMessages == 0 )
-		{
-			strcpy ( currentMessage.msgDesc, "" );
-			currentMessage.msgFloat = 0.0f;
-			currentMessage.msgInt = 0;
-			currentMessage.msgIndex = 0;
-			strcpy ( currentMessage.msgString, "" );
-
-			maxLuaMessages = 100;
-			ppLuaMessages = new luaMessage*[maxLuaMessages];
-
-			for ( int c = 0 ; c < maxLuaMessages ; c++ )
-				ppLuaMessages[c] = NULL;
-		}
-
-		if ( luaMessageCount > maxLuaMessages )
-		{
-			luaMessage** ppBigger = NULL;
-			ppBigger = new luaMessage*[luaMessageCount+100];
-
-			for ( int c = 0; c < luaMessageCount; c++ )
-			 ppBigger [ c ] = ppLuaMessages [ c ];
-
-			delete [ ] ppLuaMessages;
-
-			ppLuaMessages = ppBigger;
-
-			for ( int c = maxLuaMessages; c < maxLuaMessages+100; c++ )
-				ppLuaMessages[c] = NULL;
-
-			maxLuaMessages += 100;
-		}
-
-		if ( ppLuaMessages[luaMessageCount-1] == NULL )
-		{
-	  
-			luaMessage* msg = new luaMessage();
-
-			strcpy ( msg->msgDesc , lua_tostring(L, i) );
-			msg->msgFloat = 0;
-			msg->msgInt = 0;
-			msg->msgIndex = 0;
-			strcpy ( msg->msgString , "" );
-			ppLuaMessages[luaMessageCount-1] = msg;
-		}
-		else
-		{
-			if ( n == 3 && i == 2 )
-				ppLuaMessages[luaMessageCount-1]->msgIndex = (int)lua_tonumber( L , i );
-			else
-			{
-				// ZJ: Prevent copying a nullptr 
-				const char* argument = lua_tostring(L, i);
-				if (argument)
-				{
-					strcpy(ppLuaMessages[luaMessageCount - 1]->msgString, argument);
-				}
-				//strcpy(ppLuaMessages[luaMessageCount - 1]->msgString, lua_tostring(L, i));
-			}
-		}
-	}
-
-	 return 0;
- }
+#include "DarkLuaMessages.inl"
 
  // Direct Calls
  void lua_updateweaponstats ( void );
@@ -765,15 +422,22 @@ static int LUA_GETTOP(lua_State* L)
 	// returns the gun
 	int iReturnValue = 0;
 
-	// find gun name specicied to get gunindex
-	char pGunName[512];
-	strcpy ( pGunName, lua_tostring(L, 1) );
-	for ( int tgunid = 1; tgunid < ArrayCount(t.gun); tgunid++ )
+	// find gun name specified to get gunindex
+	std::string_view gunName = LuaGetStringView(L, 1);
+	if (!gunName.empty())
 	{
-		if ( stricmp ( t.gun[tgunid].name_s.Get()+(strlen(t.gun[tgunid].name_s.Get())-strlen(pGunName)), pGunName ) == NULL )
+		for ( int tgunid = 1; tgunid < ArrayCount(t.gun); tgunid++ )
 		{
-			iReturnValue = tgunid;
-			break;
+			size_t gunNameLen = strlen(t.gun[tgunid].name_s.Get());
+			if (gunNameLen >= gunName.length())
+			{
+				const char* suffix = t.gun[tgunid].name_s.Get() + (gunNameLen - gunName.length());
+				if (strnicmp(suffix, gunName.data(), gunName.length()) == 0)
+				{
+					iReturnValue = tgunid;
+					break;
+				}
+			}
 		}
 	}
 	lua_pushinteger ( L, iReturnValue );
@@ -4635,10 +4299,9 @@ int Prompt3D(lua_State *L)
 {
 	int n = LUA_GETTOP(L);
 	if ( n < 2 ) return 0;
-	char pTextToRender[1024];
-	strcpy ( pTextToRender, lua_tostring(L, 1));
+	std::string pTextToRender = std::string(LuaGetStringView(L, 1));
 	DWORD dwPrompt3DTime = lua_tonumber(L, 2);
-	lua_prompt3d(pTextToRender, Timer() + dwPrompt3DTime , 0 );
+	lua_prompt3d((char*)pTextToRender.c_str(), Timer() + dwPrompt3DTime , 0 );
 	return 1;
 }
 
@@ -7527,8 +7190,7 @@ int SetShaderVariable ( lua_State *L )
 	int n = LUA_GETTOP(L);
 	if ( n < 6 ) return 0;
 	int iShaderIndex = lua_tonumber(L, 1);
-	char pConstantName[512];
-	strcpy ( pConstantName, lua_tostring(L, 2) );
+	std::string pConstantName = std::string(LuaGetStringView(L, 2));
 	float fValue1 = lua_tonumber(L, 3);
 	float fValue2 = lua_tonumber(L, 4);
 	float fValue3 = lua_tonumber(L, 5);
@@ -7541,7 +7203,7 @@ int SetShaderVariable ( lua_State *L )
 	{
 		if ( GetEffectExist ( iSI ) == 1 ) 
 		{
-			DWORD pConstantPtr = GetEffectParameterIndex ( iSI, pConstantName );
+			DWORD pConstantPtr = GetEffectParameterIndex ( iSI, const_cast<char*>(pConstantName.c_str()) );
 			if ( pConstantPtr ) 
 			{
 				SetEffectConstantVEx( iSI, pConstantPtr, g.terrainvectorindex1 );
@@ -7847,10 +7509,9 @@ int GetStoryboardActive(lua_State *L)
 {
 	lua = L;
 
-	char pScreenName[512];
-	strcpy(pScreenName, lua_tostring(L, 1));
+	std::string pScreenName = std::string(LuaGetStringView(L, 1));
 
-	int iNode = FindLuaScreenNode(pScreenName);
+	int iNode = FindLuaScreenNode((char*)pScreenName.c_str());
 	if (iNode >= 0 && strlen(Storyboard.gamename) > 0)
 	{
 		lua_pushnumber(L, 1);
@@ -7873,9 +7534,8 @@ int SetScreenHUDGlobalScale(lua_State* L)
 int InitScreen(lua_State* L)
 {
 	// write to active LUA, i.e. g_UserGlobal[yourscript.user_variable_name]
-	char pScreenName[512];
-	strcpy(pScreenName, lua_tostring(L, 1));
-	//int nodeid = FindLuaScreenNode(pScreenName);
+	std::string pScreenName = std::string(LuaGetStringView(L, 1));
+	//int nodeid = FindLuaScreenNode(pScreenName.c_str());
 	for (int nodeid = 0; nodeid < STORYBOARD_MAXNODES; nodeid++)
 	{
 		if (strlen(Storyboard.Nodes[nodeid].lua_name) > 0 && strnicmp(Storyboard.Nodes[nodeid].lua_name, "hud", 3) == NULL)
@@ -7906,10 +7566,9 @@ int InitScreen(lua_State* L)
 }
 int DisplayScreen(lua_State* L)
 {
-	char pScreenName[512];
-	strcpy(pScreenName, lua_tostring(L, 1));
+	std::string pScreenName = std::string(LuaGetStringView(L, 1));
 	int screen_editor(int nodeid, bool standalone = false, char* screen = NULL);
-	screen_editor(-1, true, pScreenName);
+	screen_editor(-1, true, (char*)pScreenName.c_str());
 	lua_pushnumber(L, iSpecialLuaReturn);
 	return 1;
 }
@@ -7970,10 +7629,9 @@ int ScreenToggle(lua_State* L)
 {
 	lua = L;
 	int n = LUA_GETTOP(L); if (n < 1) return 0;
-	char pScreenTitle[512];
-	strcpy(pScreenTitle, lua_tostring(L, 1));
+	std::string pScreenTitle = std::string(LuaGetStringView(L, 1));
 	t.game.activeStoryboardScreen = -1;
-	int nodeid = FindLuaScreenTitleNode(pScreenTitle);
+	int nodeid = FindLuaScreenTitleNode((char*)pScreenTitle.c_str());
 	if (nodeid >= 0)
 	{
 		t.game.activeStoryboardScreen = nodeid;
@@ -7984,10 +7642,9 @@ int ScreenToggleByKey(lua_State* L)
 {
 	lua = L;
 	int n = LUA_GETTOP(L); if (n < 1) return 0;
-	char pKeyToSearchFor[512];
-	strcpy(pKeyToSearchFor, lua_tostring(L, 1));
+	std::string pKeyToSearchFor = std::string(LuaGetStringView(L, 1));
 	t.game.activeStoryboardScreen = -1;
-	int nodeid = FindLuaScreenTitleNodeByKey(pKeyToSearchFor);
+	int nodeid = FindLuaScreenTitleNodeByKey((char*)pKeyToSearchFor.c_str());
 	if (nodeid >= 0)
 	{
 		t.game.activeStoryboardScreen = nodeid;
@@ -8022,12 +7679,11 @@ int GetCurrentScreenName(lua_State* L)
 int GetScreenWidgetValue(lua_State *L)
 {
 	float fRet = -99999.0;
-	char pScreenName[512];
-	strcpy(pScreenName, lua_tostring(L, 1));
+	std::string pScreenName = std::string(LuaGetStringView(L, 1));
 	int iButton = lua_tonumber(L, 2);
 	if (iButton >= 0 && iButton < STORYBOARD_MAXOUTPUTS)
 	{
-		int nodeid = FindLuaScreenNode(pScreenName);
+		int nodeid = FindLuaScreenNode((char*)pScreenName.c_str());
 		if (nodeid >= 0 && nodeid < STORYBOARD_MAXNODES)
 		{
 			fRet = Storyboard.NodeSliderValues[nodeid][iButton];
@@ -8040,13 +7696,12 @@ int GetScreenWidgetValue(lua_State *L)
 int SetScreenWidgetValue(lua_State *L)
 {
 	float fRet = -99999.0;
-	char pScreenName[512];
-	strcpy(pScreenName, lua_tostring(L, 1));
+	std::string pScreenName = std::string(LuaGetStringView(L, 1));
 	int iButton = lua_tonumber(L, 2);
 	float fNewValue = lua_tonumber(L, 3);
 	if (iButton >= 0 && iButton < STORYBOARD_MAXOUTPUTS)
 	{
-		int nodeid = FindLuaScreenNode(pScreenName);
+		int nodeid = FindLuaScreenNode((char*)pScreenName.c_str());
 		if (nodeid >= 0 && nodeid < STORYBOARD_MAXNODES)
 		{
 			fRet = Storyboard.NodeSliderValues[nodeid][iButton] = fNewValue;
@@ -8059,12 +7714,11 @@ int SetScreenWidgetValue(lua_State *L)
 int SetScreenWidgetSelection(lua_State *L)
 {
 	int iRet = -99999;
-	char pScreenName[512];
-	strcpy(pScreenName, lua_tostring(L, 1));
+	std::string pScreenName = std::string(LuaGetStringView(L, 1));
 	int iButton = lua_tonumber(L, 2);
 	if (iButton >= 0 && iButton < STORYBOARD_MAXOUTPUTS)
 	{
-		int nodeid = FindLuaScreenNode(pScreenName);
+		int nodeid = FindLuaScreenNode((char*)pScreenName.c_str());
 		if (nodeid >= 0 && nodeid < STORYBOARD_MAXNODES)
 		{
 			iRet = Storyboard.NodeRadioButtonSelected[nodeid] = iButton; // used by GRAPHICS SETTINGS (1,2,3)
@@ -8080,17 +7734,16 @@ int GetScreenElementsType(lua_State* L)
 	if (nodeid == -1) nodeid = t.game.ingameHUDScreen;
 	if (nodeid >= 0 && nodeid < STORYBOARD_MAXNODES)
 	{
-		char pReadoutName[512];
-		strcpy(pReadoutName, lua_tostring(L, 1));
-		if (strlen(pReadoutName) > 0)
+		std::string pReadoutName = std::string(LuaGetStringView(L, 1));
+		if (!pReadoutName.empty())
 		{
-			int iPatternLength = strlen(pReadoutName) - 1;
-			if (pReadoutName[iPatternLength] == '*')
+			if (pReadoutName.back() == '*')
 			{
+				int iPatternLength = (int)pReadoutName.length() - 1;
 				// find pattern match with string passed in
 				for (int n = 0; n < STORYBOARD_MAXWIDGETS; n++)
 				{
-					if (strnicmp(Storyboard.widget_readout[nodeid][n], pReadoutName, iPatternLength) == NULL)
+					if (strnicmp(Storyboard.widget_readout[nodeid][n], pReadoutName.c_str(), iPatternLength) == NULL)
 					{
 						iQty++;
 					}
@@ -8101,7 +7754,7 @@ int GetScreenElementsType(lua_State* L)
 				// exact match
 				for (int n = 0; n < STORYBOARD_MAXWIDGETS; n++)
 				{
-					if (stricmp(Storyboard.widget_readout[nodeid][n], pReadoutName) == NULL)
+					if (stricmp(Storyboard.widget_readout[nodeid][n], pReadoutName.c_str()) == NULL)
 					{
 						iQty++;
 					}
@@ -8120,41 +7773,46 @@ int GetScreenElementTypeID(lua_State* L)
 	if (nodeid == -1) nodeid = t.game.ingameHUDScreen;
 	if (nodeid >= 0 && nodeid < STORYBOARD_MAXNODES)
 	{
-		char pReadoutName[512];
-		strcpy(pReadoutName, lua_tostring(L, 1));
+		std::string pReadoutName = std::string(LuaGetStringView(L, 1));
 		int iIndex = lua_tonumber(L, 2);
-		for (int n = 0; n < STORYBOARD_MAXWIDGETS; n++)
+		if (!pReadoutName.empty())
 		{
-			int iPatternLength = strlen(pReadoutName) - 1;
-			if (pReadoutName[iPatternLength] == '*')
+			if (pReadoutName.back() == '*')
 			{
+				int iPatternLength = (int)pReadoutName.length() - 1;
 				// find pattern match with string passed in
-				if (strnicmp(Storyboard.widget_readout[nodeid][n], pReadoutName, iPatternLength) == NULL)
+				for (int n = 0; n < STORYBOARD_MAXWIDGETS; n++)
 				{
-					iCount++;
-					if (iCount == iIndex)
+					if (strnicmp(Storyboard.widget_readout[nodeid][n], pReadoutName.c_str(), iPatternLength) == NULL)
 					{
-						// found valid element from readout type match
-						iElementID = 1 + n;
+						iCount++;
+						if (iCount == iIndex)
+						{
+							// found valid element from readout type match
+							iElementID = 1 + n;
 
-						// done
-						break;
+							// done
+							break;
+						}
 					}
 				}
 			}
 			else
 			{
 				// exact match
-				if (stricmp(Storyboard.widget_readout[nodeid][n], pReadoutName) == NULL)
+				for (int n = 0; n < STORYBOARD_MAXWIDGETS; n++)
 				{
-					iCount++;
-					if (iCount == iIndex)
+					if (stricmp(Storyboard.widget_readout[nodeid][n], pReadoutName.c_str()) == NULL)
 					{
-						// found valid element from readout type match
-						iElementID = 1 + n;
+						iCount++;
+						if (iCount == iIndex)
+						{
+							// found valid element from readout type match
+							iElementID = 1 + n;
 
-						// done
-						break;
+							// done
+							break;
+						}
 					}
 				}
 			}
@@ -8170,17 +7828,16 @@ int GetScreenElements(lua_State* L)
 	if (nodeid == -1) nodeid = t.game.ingameHUDScreen;
 	if (nodeid >= 0 && nodeid < STORYBOARD_MAXNODES)
 	{
-		char pElementName[512];
-		strcpy(pElementName, lua_tostring(L, 1));
-		if (strlen(pElementName) > 0)
+		std::string pElementName = std::string(LuaGetStringView(L, 1));
+		if (!pElementName.empty())
 		{
-			int iPatternLength = strlen(pElementName) - 1;
-			if (pElementName[iPatternLength] == '*')
+			if (pElementName.back() == '*')
 			{
+				int iPatternLength = (int)pElementName.length() - 1;
 				// find pattern match
 				for (int n = 0; n < STORYBOARD_MAXWIDGETS; n++)
 				{
-					if (strnicmp(Storyboard.Nodes[nodeid].widget_label[n], pElementName, iPatternLength) == NULL)
+					if (strnicmp(Storyboard.Nodes[nodeid].widget_label[n], pElementName.c_str(), iPatternLength) == NULL)
 					{
 						iQty++;
 					}
@@ -8191,7 +7848,7 @@ int GetScreenElements(lua_State* L)
 				// exact match
 				for (int n = 0; n < STORYBOARD_MAXWIDGETS; n++)
 				{
-					if (stricmp(Storyboard.Nodes[nodeid].widget_label[n], pElementName) == NULL)
+					if (stricmp(Storyboard.Nodes[nodeid].widget_label[n], pElementName.c_str()) == NULL)
 					{
 						iQty++;
 					}
@@ -8210,23 +7867,17 @@ int GetScreenElementID(lua_State* L)
 	if (nodeid == -1) nodeid = t.game.ingameHUDScreen;
 	if (nodeid >= 0 && nodeid < STORYBOARD_MAXNODES)
 	{
-		char pElementName[512];
-		strcpy(pElementName, lua_tostring(L, 1));
+		std::string pElementName = std::string(LuaGetStringView(L, 1));
 		int iIndex = lua_tonumber(L, 2);
-		for (int n = 0; n < STORYBOARD_MAXWIDGETS; n++)
+		if (!pElementName.empty())
 		{
-			if (pElementName[0] == 's')
+			if (pElementName.back() == '*')
 			{
-				strcpy(pElementName, pElementName);
-			}
-
-			int iPatternLength = strlen(pElementName) - 1;
-			if (pElementName[iPatternLength] == '*')
-			{
+				int iPatternLength = (int)pElementName.length() - 1;
 				// find pattern match
 				for (int n = 0; n < STORYBOARD_MAXWIDGETS; n++)
 				{
-					if (strnicmp(Storyboard.Nodes[nodeid].widget_label[n], pElementName, iPatternLength) == NULL)
+					if (strnicmp(Storyboard.Nodes[nodeid].widget_label[n], pElementName.c_str(), iPatternLength) == NULL)
 					{
 						iCount++;
 						if (iCount == iIndex)
@@ -8243,16 +7894,19 @@ int GetScreenElementID(lua_State* L)
 			else
 			{
 				// exact match
-				if (stricmp(Storyboard.Nodes[nodeid].widget_label[n], pElementName) == NULL)
+				for (int n = 0; n < STORYBOARD_MAXWIDGETS; n++)
 				{
-					iCount++;
-					if (iCount == iIndex)
+					if (stricmp(Storyboard.Nodes[nodeid].widget_label[n], pElementName.c_str()) == NULL)
 					{
-						// found valid element
-						iElementID = 1 + n;
+						iCount++;
+						if (iCount == iIndex)
+						{
+							// found valid element
+							iElementID = 1 + n;
 
-						// done
-						break;
+							// done
+							break;
+						}
 					}
 				}
 			}
@@ -8470,10 +8124,9 @@ int GetCollectionItemAttribute(lua_State* L)
 	{
 		// find attribute label index
 		int iLabelIndex = 0;
-		char pAttributeLabel[512];
-		strcpy(pAttributeLabel, lua_tostring(L, 2));
+		std::string pAttributeLabel = std::string(LuaGetStringView(L, 2));
 		for (iLabelIndex = 0; iLabelIndex < g_collectionLabels.size(); iLabelIndex++)
-			if (stricmp(g_collectionLabels[iLabelIndex].Get(), pAttributeLabel) == NULL)
+			if (stricmp(g_collectionLabels[iLabelIndex].Get(), pAttributeLabel.c_str()) == NULL)
 				break;
 
 		// can pull field data from collection list item
@@ -8523,10 +8176,9 @@ int GetCollectionQuestAttribute(lua_State* L)
 	{
 		// find attribute label index
 		int iLabelIndex = 0;
-		char pAttributeLabel[512];
-		strcpy(pAttributeLabel, lua_tostring(L, 2));
+		std::string pAttributeLabel = std::string(LuaGetStringView(L, 2));
 		for (iLabelIndex = 0; iLabelIndex < g_collectionQuestLabels.size(); iLabelIndex++)
-			if (stricmp(g_collectionQuestLabels[iLabelIndex].Get(), pAttributeLabel) == NULL)
+			if (stricmp(g_collectionQuestLabels[iLabelIndex].Get(), pAttributeLabel.c_str()) == NULL)
 				break;
 
 		// can pull field data from collection list quest
@@ -8541,8 +8193,9 @@ int GetCollectionQuestAttribute(lua_State* L)
 
 // Inventory containers
 
-int FindInventoryIndex (LPSTR pNameOfInventory)
+int FindInventoryIndex (const char* pNameOfInventory)
 {
+	if (!pNameOfInventory) return -1;
 	int bothplayercontainers = -1;
 	for (int n = 0; n < t.inventoryContainers.size(); n++)
 	{
@@ -8557,11 +8210,10 @@ int FindInventoryIndex (LPSTR pNameOfInventory)
 int MakeInventoryContainer (lua_State* L)
 {
 	int containerindex = -1;
-	char pNameOfInventory[512];
-	strcpy(pNameOfInventory, lua_tostring(L, 1));
+	std::string pNameOfInventory = std::string(LuaGetStringView(L, 1));
 	for (int n = 0; n < t.inventoryContainers.size(); n++)
 	{
-		if (stricmp(t.inventoryContainers[n].Get(), pNameOfInventory) == NULL)
+		if (stricmp(t.inventoryContainers[n].Get(), pNameOfInventory.c_str()) == NULL)
 		{
 			containerindex = n;
 			break;
@@ -8570,7 +8222,7 @@ int MakeInventoryContainer (lua_State* L)
 	if (containerindex == -1)
 	{
 		// create new container
-		t.inventoryContainers.push_back(pNameOfInventory);
+		t.inventoryContainers.push_back((char*)pNameOfInventory.c_str());
 		containerindex = t.inventoryContainers.size() - 1;
 		t.inventoryContainer[containerindex].clear();
 	}
@@ -8586,11 +8238,10 @@ int GetInventoryTotal(lua_State* L)
 int GetInventoryName(lua_State* L)
 {
 	int iInventoryIndex = lua_tonumber(L, 1);
-	char pNameOfInventory[512];
-	strcpy(pNameOfInventory, "");
+	std::string pNameOfInventory = "";
 	if (iInventoryIndex >= 0 && iInventoryIndex < t.inventoryContainers.size())
-		strcpy(pNameOfInventory, t.inventoryContainers[iInventoryIndex].Get());
-	lua_pushstring(L, pNameOfInventory);
+		pNameOfInventory = t.inventoryContainers[iInventoryIndex].Get();
+	lua_pushstring(L, pNameOfInventory.c_str());
 	return 1;
 }
 int GetInventoryExist(lua_State* L)
@@ -8601,9 +8252,8 @@ int GetInventoryExist(lua_State* L)
 	int nodeid = FindLuaScreenTitleNode(pScreenTitle);
 	if (nodeid >= 0)
 	{
-		char pNameOfInventory[512];
-		strcpy(pNameOfInventory, lua_tostring(L, 1));
-		int bothplayercontainers = FindInventoryIndex(pNameOfInventory);
+		std::string pNameOfInventory = std::string(LuaGetStringView(L, 1));
+		int bothplayercontainers = FindInventoryIndex(pNameOfInventory.c_str());
 		if (bothplayercontainers >= 0) iExist = 1;
 	}
 	lua_pushnumber(L, iExist);
@@ -8612,9 +8262,8 @@ int GetInventoryExist(lua_State* L)
 int GetInventoryQuantity(lua_State* L)
 {
 	int iQty = 0;
-	char pNameOfInventory[512];
-	strcpy(pNameOfInventory, lua_tostring(L, 1));
-	int bothplayercontainers = FindInventoryIndex(pNameOfInventory);
+	std::string pNameOfInventory = std::string(LuaGetStringView(L, 1));
+	int bothplayercontainers = FindInventoryIndex(pNameOfInventory.c_str());
 	if (bothplayercontainers >= 0)
 	{
 		iQty = t.inventoryContainer[bothplayercontainers].size();
@@ -8625,9 +8274,8 @@ int GetInventoryQuantity(lua_State* L)
 int GetInventoryItem(lua_State* L)
 {
 	int iCollectionItemID = 0;
-	char pNameOfInventory[512];
-	strcpy(pNameOfInventory, lua_tostring(L, 1));
-	int bothplayercontainers = FindInventoryIndex(pNameOfInventory);
+	std::string pNameOfInventory = std::string(LuaGetStringView(L, 1));
+	int bothplayercontainers = FindInventoryIndex(pNameOfInventory.c_str());
 	if (bothplayercontainers >= 0)
 	{
 		int iInventoryIndex = lua_tonumber(L, 2);
@@ -8642,9 +8290,8 @@ int GetInventoryItem(lua_State* L)
 int GetInventoryItemID(lua_State* L)
 {
 	int iItemEntityID = 0;
-	char pNameOfInventory[512];
-	strcpy(pNameOfInventory, lua_tostring(L, 1));
-	int bothplayercontainers = FindInventoryIndex(pNameOfInventory);
+	std::string pNameOfInventory = std::string(LuaGetStringView(L, 1));
+	int bothplayercontainers = FindInventoryIndex(pNameOfInventory.c_str());
 	if (bothplayercontainers >= 0)
 	{
 		int iInventoryIndex = lua_tonumber(L, 2);
@@ -8659,9 +8306,8 @@ int GetInventoryItemID(lua_State* L)
 int GetInventoryItemSlot(lua_State* L)
 {
 	int iItemSlot = 0;
-	char pNameOfInventory[512];
-	strcpy(pNameOfInventory, lua_tostring(L, 1));
-	int bothplayercontainers = FindInventoryIndex(pNameOfInventory);
+	std::string pNameOfInventory = std::string(LuaGetStringView(L, 1));
+	int bothplayercontainers = FindInventoryIndex(pNameOfInventory.c_str());
 	if (bothplayercontainers >= 0)
 	{
 		int iInventoryIndex = lua_tonumber(L, 2);
@@ -8675,9 +8321,8 @@ int GetInventoryItemSlot(lua_State* L)
 }
 int SetInventoryItemSlot(lua_State* L)
 {
-	char pNameOfInventory[512];
-	strcpy(pNameOfInventory, lua_tostring(L, 1));
-	int bothplayercontainers = FindInventoryIndex(pNameOfInventory);
+	std::string pNameOfInventory = std::string(LuaGetStringView(L, 1));
+	int bothplayercontainers = FindInventoryIndex(pNameOfInventory.c_str());
 	if (bothplayercontainers >= 0)
 	{
 		int iInventoryIndex = lua_tonumber(L, 2);
@@ -8768,17 +8413,15 @@ int MoveInventoryItem (lua_State* L)
 	lua = L;
 	int n = LUA_GETTOP(L);
 	if (n < 5) return 0;
-	char pNameOfInventoryFrom[512];
-	strcpy(pNameOfInventoryFrom, lua_tostring(L, 1));
+	std::string pNameOfInventoryFrom = std::string(LuaGetStringView(L, 1));
 	int collectionindex = lua_tonumber(L, 3);
 	int entityindex = lua_tonumber(L, 4);
-	int bothplayercontainersfrom = FindInventoryIndex(pNameOfInventoryFrom);
+	int bothplayercontainersfrom = FindInventoryIndex(pNameOfInventoryFrom.c_str());
 	if (bothplayercontainersfrom >= 0)
 	{
 		bool bNeedToRecreateContainerFrom = false;
-		char pNameOfInventoryTo[512];
-		strcpy(pNameOfInventoryTo, lua_tostring(L, 2));
-		int bothplayercontainersto = FindInventoryIndex(pNameOfInventoryTo);
+		std::string pNameOfInventoryTo = std::string(LuaGetStringView(L, 2));
+		int bothplayercontainersto = FindInventoryIndex(pNameOfInventoryTo.c_str());
 		if (bothplayercontainersto >= 0)
 		{
 			int slotindex = lua_tonumber(L, 5);
@@ -8963,9 +8606,8 @@ int AddInventoryItem (lua_State* L)
 	lua = L;
 	int n = LUA_GETTOP(L);
 	if (n < 4) return 0;
-	char pNameOfInventoryTo[512];
-	strcpy(pNameOfInventoryTo, lua_tostring(L, 1));
-	int bothplayercontainersto = FindInventoryIndex(pNameOfInventoryTo);
+	std::string pNameOfInventoryTo = std::string(LuaGetStringView(L, 1));
+	int bothplayercontainersto = FindInventoryIndex(pNameOfInventoryTo.c_str());
 	if (bothplayercontainersto >= 0)
 	{
 		int collectionindex = lua_tonumber(L, 2);
@@ -10264,10 +9906,9 @@ int ParticlesLoadImage(lua_State *L)
 	int iID = 0;
 	if (n == 2) iID = lua_tonumber(L, 2);
 
-	char pFileName[256];
-	strcpy(pFileName, lua_tostring(L, 1));
+	std::string pFileName = std::string(LuaGetStringView(L, 1));
 
-	iID = ravey_particles_load_image(pFileName, iID);
+	iID = ravey_particles_load_image(const_cast<char*>(pFileName.c_str()), iID);
 
 	if (iID == -1) return 0;
 
@@ -10281,10 +9922,9 @@ int ParticlesLoadEffect(lua_State *L)
 	int n = LUA_GETTOP(L);
 	if (n < 2) return 0;
 
-	char pFileName[256];
-	strcpy(pFileName, lua_tostring(L, 1));
+	std::string pFileName = std::string(LuaGetStringView(L, 1));
 
-	lua_pushnumber(L, ravey_particles_load_effect(pFileName, lua_tonumber(L, 2)));
+	lua_pushnumber(L, ravey_particles_load_effect(const_cast<char*>(pFileName.c_str()), lua_tonumber(L, 2)));
 	return 1;
 }
 
@@ -10803,16 +10443,15 @@ int WParticleEffectLoad(lua_State* L)
 	
 	Scene& scene = wiScene::GetScene();
 
-	char pFileName[MAX_PATH];
-	strcpy(pFileName, lua_tostring(L, 1));
+	char path[MAX_PATH] = {};
+	std::string_view svFileName = LuaGetStringView(L, 1);
+	strncpy_s(path, sizeof(path), svFileName.data(), (std::min)(svFileName.size(), sizeof(path) - 1));
 
 	uint32_t root = 0;
 	uint32_t count_before = scene.emitters.GetCount();
 
 	cstr pOldDir = GetDir();
 
-	char path[MAX_PATH];
-	strcpy(path, pFileName);
 	GG_GetRealPath(path, 0);
 
 	WickedCall_LoadWiScene(path, false, NULL, NULL);
@@ -10979,8 +10618,9 @@ int LoadTracerImage(lua_State* L)
 	lua = L;
 	int n = LUA_GETTOP(L);
 	if (n < 2) return 0;
-	char FileName[MAX_PATH];
-	strcpy(FileName, lua_tostring(L, 1));
+	char FileName[MAX_PATH] = {};
+	std::string_view svFileName = LuaGetStringView(L, 1);
+	strncpy_s(FileName, sizeof(FileName), svFileName.data(), (std::min)(svFileName.size(), sizeof(FileName) - 1));
 
 	int iImageID = lua_tonumber(L, 2);
 	if (iImageID < 0 || iImageID >= 100)
@@ -11196,44 +10836,40 @@ int SetFont ( lua_State *L )
 	if ( n < 2 )
 		return 0;
 
-	char fileName[MAX_PATH];
-	char path[MAX_PATH];
-	char finalPath[MAX_PATH];
-	char fpspath[MAX_PATH];
+	char fileName[MAX_PATH] = {};
+	std::string_view svFileName = LuaGetStringView(L, 1);
+	strncpy_s(fileName, sizeof(fileName), svFileName.data(), (std::min)(svFileName.size(), sizeof(fileName) - 1));
 
-	strcpy ( fpspath , g.fpscrootdir_s.Get() );
-	strcat ( fpspath , "\\Files\\" );
+	char path[MAX_PATH] = {};
+	char finalPath[MAX_PATH] = {};
+	char fpspath[MAX_PATH] = {};
 
-	strcpy ( finalPath , "" );
+	snprintf(fpspath, sizeof(fpspath), "%s\\Files\\", g.fpscrootdir_s.Get());
 
-	strcpy ( fileName , lua_tostring(L,1) );
-	strcpy ( path , fpspath );
-	strcat ( path , "fontbank\\FPSCR-Font-" );
-	strcat ( path , fileName ); 
+	snprintf(path, sizeof(path), "%sfontbank\\FPSCR-Font-%s", fpspath, fileName);
 	if ( FileExist ( path ) == 1 )
-		strcpy ( finalPath , path );
+		strcpy_s ( finalPath, sizeof(finalPath), path );
 
-	strcpy ( fileName , lua_tostring(L,1) );
-	strcpy ( path , fpspath );
-	strcat ( path , "fontbank\\FPSCR-" );
-	strcat ( path , fileName ); 
-	if ( FileExist ( path ) == 1 )
-		strcpy ( finalPath , path );
+	if ( strcmp ( finalPath , "" ) == 0 )
+	{
+		snprintf(path, sizeof(path), "%sfontbank\\FPSCR-%s", fpspath, fileName);
+		if ( FileExist ( path ) == 1 )
+			strcpy_s ( finalPath, sizeof(finalPath), path );
+	}
 
-	strcpy ( fileName , lua_tostring(L,1) );
-	strcpy ( path , fpspath );
-	strcat ( path , "fontbank\\" );
-	strcat ( path , fileName ); 
-	if ( FileExist ( path ) == 1 )
-		strcpy ( finalPath , path );
+	if ( strcmp ( finalPath , "" ) == 0 )
+	{
+		snprintf(path, sizeof(path), "%sfontbank\\%s", fpspath, fileName);
+		if ( FileExist ( path ) == 1 )
+			strcpy_s ( finalPath, sizeof(finalPath), path );
+	}
 
 	if ( strcmp ( finalPath , "" ) == 0 ) return 0;
 
-	if (finalPath[strlen(finalPath) - 4] == '.')
-		// this is a c style string terminator, so alternative to fix custom fonts for Cogwheel
-		//finalPath[strlen(finalPath)-4] = '\0';
+	size_t finalLen = strlen(finalPath);
+	if (finalLen >= 4 && finalPath[finalLen - 4] == '.')
 	{
-		finalPath[strlen(finalPath) - 4] = 0;
+		finalPath[finalLen - 4] = 0;
 	}
 
 	changebitmapfont(finalPath, lua_tointeger(L, 2));
@@ -12199,6 +11835,9 @@ int int_core_sendmessagenone(lua_State* L, eInternalCommandNames eInternalComman
 		case enum_losegame: lua_losegame(); break;
 		case enum_musicstop: lua_musicstop(); break;
 	}
+	t.e = storee;
+	t.v = storev;
+	return 0;
 }
 int SendMessage_startgame(lua_State* L) { return int_core_sendmessagenone(L, enum_startgame); }
 int SendMessage_loadgame(lua_State* L) { return int_core_sendmessagenone(L, enum_loadgame); }
@@ -14489,40 +14128,9 @@ void addFunctions()
 	
 }
 
- /*
- struct luaMessage
-{
-	char msgDesc[256];
-	int msgInt;
-	float msgFloat;
-	char msgString[256];
-};
-
-luaMessage currentMessage;
-
-int luaMessageCount = 0;
-int maxLuaMessages = 0;
-luaMessage** ppLuaMessages = NULL;
- */
-
-char szLuaReturnString[1024];
-
  DARKLUA_API LPSTR LuaMessageDesc ( void )
  {
-  	// Return string pointer	
-	const char *s = currentMessage.msgDesc;
-
-	// If input string valid
-	if(s)
-	{
-		strcpy(szLuaReturnString, s);
-	}
-	else
-	{
-		strcpy(szLuaReturnString, "");
-	}
-
-	return GetReturnStringFromTEXTWorkString( szLuaReturnString );
+	return GetReturnStringFromTEXTWorkString( const_cast<char*>(currentMessage.msgDesc.c_str()) );
  }
 
  DARKLUA_API int LuaMessageIndex ()
@@ -14540,65 +14148,9 @@ char szLuaReturnString[1024];
 	return currentMessage.msgInt;
  }
 
-  char szLuaMessageString[1024];
-
  DARKLUA_API LPSTR LuaMessageString ( void )
  {
-  	// Return string pointer
-	LPSTR pReturnString=NULL;
-	const char *s = currentMessage.msgString;
-
-	// If input string valid
-	if(s)
-	{
-		strcpy(szLuaMessageString, s);
-	}
-	else
-	{
-		strcpy(szLuaMessageString, "");
-	}
-
-	return GetReturnStringFromTEXTWorkString( szLuaMessageString );
- }
-
- DARKLUA_API int LuaNext()
- {
-	if ( luaMessageCount == 0 ) 
-	{
-		strcpy ( currentMessage.msgDesc, "" );
-		currentMessage.msgFloat = 0.0f;
-		currentMessage.msgInt = 0;
-		currentMessage.msgIndex = 0;
-		strcpy ( currentMessage.msgString, "" );
-		return 0;
-	}
-	else
-	{
-		if (ppLuaMessages && ppLuaMessages[0]->msgDesc)
-		{
-			strcpy (currentMessage.msgDesc, ppLuaMessages[0]->msgDesc);
-			currentMessage.msgFloat = ppLuaMessages[0]->msgFloat;
-			currentMessage.msgInt = ppLuaMessages[0]->msgInt;
-			currentMessage.msgIndex = ppLuaMessages[0]->msgIndex;
-			strcpy (currentMessage.msgString, ppLuaMessages[0]->msgString);
-
-			delete ppLuaMessages[0];
-			ppLuaMessages[0] = NULL;
-
-			for (int c = 1; c < luaMessageCount; c++)
-				ppLuaMessages[c - 1] = ppLuaMessages[c];
-
-			ppLuaMessages[luaMessageCount - 1] = NULL;
-
-			luaMessageCount--;
-		}
-		else
-		{
-			// something erased all/part LUA messages array
-			return 0;
-		}
-	}
-	return 1;
+	return GetReturnStringFromTEXTWorkString( const_cast<char*>(currentMessage.msgString.c_str()) );
  }
 
  DARKLUA_API void SetLuaState ( int id )
@@ -15195,25 +14747,8 @@ DARKLUA_API void LuaCallSilent()
 		maxLuaStates = 0;
 	}
 
-	// Empty Message Queue
-	if ( ppLuaMessages )
-	{
-		for ( int c = 0 ; c < maxLuaMessages; c++ )
-		{
-			if ( ppLuaMessages[c] != NULL )
-			{
-				delete ppLuaMessages[c];
-				ppLuaMessages[c] = NULL;
-			}
-		}
-	}
-
-	// reset messaging
-	strcpy ( currentMessage.msgDesc, "" );
-	currentMessage.msgFloat = 0.0f;
-	currentMessage.msgInt = 0;
-	currentMessage.msgIndex = 0;
-	strcpy ( currentMessage.msgString, "" );
+	// Discard pending messages and reset all current-message fields.
+	LuaClearMessageQueue();
 
 	//Reset already loaded list
 	ScriptsLoaded.clear();
@@ -15564,27 +15099,29 @@ DARKLUA_API void LuaCallSilent()
 	return fValue;
  }
 
- DARKLUA_API void LuaGetString(LPSTR pString, LPSTR pDestStr)
+#include "DarkLuaStrings.inl"
+
+ DARKLUA_API std::string LuaGetStringSafe(std::string_view globalName)
  {
 	 int id = defaultState;
-	 if (id > maxLuaStates + 1)
+	 if (id > maxLuaStates + 1 || ppLuaStates == NULL || ppLuaStates[id] == NULL)
 	 {
-		 return;
-	 }
-	 if (ppLuaStates[id] == NULL)
-	 {
-		 return;
+		 return "";
 	 }
 
 	 lua = ppLuaStates[id]->state;
-	 lua_getglobal(lua, pString);
+	 if (!lua) return "";
 
-	 const char* pValue = lua_tostring(lua, -1);
-	 if (pDestStr && pValue)
-	 {
-		 strcpy(pDestStr, pValue);
-	 }
-	 lua_pop(lua, 1);
+	 return LuaGetStringSafe(lua, globalName);
+ }
+
+ DARKLUA_API void LuaGetString(std::string_view globalName, char* pDest, size_t destSize)
+ {
+	 if (!pDest || destSize == 0) return;
+	 const std::string value = LuaGetStringSafe(globalName);
+	 const size_t count = (std::min)(value.size(), destSize - 1);
+	 if (count) memcpy(pDest, value.data(), count);
+	 pDest[count] = '\0';
  }
 
  DARKLUA_API void LuaSetInt ( LPSTR pString , int value, int id )
