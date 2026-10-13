@@ -97,7 +97,7 @@ if ($proc.HasExited) {
         Write-Host (" [MILESTONE] Model Ingestion & Entities:     " + $(if ($hasEntities) { "PASS" } else { "NOT FOUND" })) -ForegroundColor $(if ($hasEntities) { "Green" } else { "Yellow" })
 
         # Milestone 4: Game Loop Execution
-        $hasGameLoop = [bool]($logContent -match "(main game loop begins|STARTING GAME)")
+        $hasGameLoop = [bool]($logContent -match "(main game loop begins|STARTING GAME|Guru Map Editor Loop Starts)")
         Write-Host (" [MILESTONE] Game Loop & Simulation:        " + $(if ($hasGameLoop) { "PASS" } else { "NOT FOUND" })) -ForegroundColor $(if ($hasGameLoop) { "Green" } else { "Yellow" })
     }
 
