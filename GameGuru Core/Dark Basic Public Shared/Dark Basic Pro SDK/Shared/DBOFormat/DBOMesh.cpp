@@ -62,7 +62,7 @@ DARKSDK_DLL bool EnsureTextureStageValid ( sMesh* pMesh, int iTextureStage )
 	{
 		sTexture* pNewTextureArray = NULL;
 		pNewTextureArray = new sTexture [ dwTextureIndex ];
-		memset(pNewTextureArray, 0, sizeof(pNewTextureArray));
+		memset(pNewTextureArray, 0, sizeof(sTexture) * dwTextureIndex);
 		g_pGlob->dwInternalFunctionCode=11013;
 		if ( pMesh->pTextures ) memcpy ( pNewTextureArray, pMesh->pTextures, sizeof(sTexture) * pMesh->dwTextureCount );
 

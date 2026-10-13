@@ -1,0 +1,80 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{63C7A896-7341-494D-9429-33DB88324CD5}</ProjectGuid>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <OutDir>$(ProjectDir)bin\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)obj\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <Optimization>MaxSpeed</Optimization>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
+      <UndefinePreprocessorDefinitions>NDEBUG</UndefinePreprocessorDefinitions>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <AdditionalIncludeDirectories>..\..\..\..\WickedRepo\WickedEngine;..\..\Guru-WickedMAX;..\..\GameGuru\Include;..\..\Dark Basic Public Shared\Include;..\..\Dark Wicked Shared\Include;..\..\Dark Wicked Shared\DWTerrain;..\..\SDK\DirectX;..\..\SDK\DB3;..\..\SDK\BaseClasses;..\..\SDK\DirectX\Include;..\..\SDK\Steamworks SDK\public;..\..\SDK\RecastContrib;..\..\SDK\RecastContrib\fastlz;..\..\SDK\BULLET\bullet-3.19\src;..\..\SDK\OPTICK\include;..\..\Guru-WickedMAX\GGRecastDetour\DebugUtils\Include;..\..\Guru-WickedMAX\GGRecastDetour\Detour\Include;..\..\Guru-WickedMAX\GGRecastDetour\DetourCrowd\Include;..\..\Guru-WickedMAX\GGRecastDetour\DetourTileCache\Include;..\..\Guru-WickedMAX\GGRecastDetour\Recast\Include;..\..\SDK\RecastContrib\SDL\include;..\..\Guru-WickedMAX\GGRecastDetour;..\third_party\doctest;%(AdditionalIncludeDirectories);../../Dark Basic Public Shared/Dark Basic Pro SDK/Shared/DBOFormat;../../../../ASSIMP/include</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WICKEDENGINE;_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
+      <AdditionalOptions>/Gy /Gw /FS %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <AdditionalOptions>/LTCG /OPT:REF /OPT:ICF %(AdditionalOptions)</AdditionalOptions>
+      <SubSystem>Console</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="DBOCompatibilityTests.cpp" />
+    <ClCompile Include="../../Guru-WickedMAX/DBOModel.cpp" />
+    <ClCompile Include="../../Guru-WickedMAX/DBOCompatibility.cpp" />
+    <ClCompile Include="../../Dark Basic Public Shared/Dark Basic Pro SDK/Shared/DBOFormat/DBOData.cpp" />
+    <ClCompile Include="../../Dark Basic Public Shared/Dark Basic Pro SDK/Shared/Core/KMaths/cMatrix.cpp" />
+    <ClCompile Include="../../Dark Basic Public Shared/Dark Basic Pro SDK/Shared/Core/KMaths/cVector3D.cpp" />
+    <ClCompile Include="../../Dark Basic Public Shared/Dark Basic Pro SDK/Shared/Core/KMaths/cVector4D.cpp" />
+  </ItemGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Sanitize)'=='true'">
+    <ClCompile>
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <AdditionalOptions>-flto -fsanitize=address /Gy /Gw /FS %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <AdditionalOptions>/OPT:REF /OPT:ICF %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalDependencies>clang_rt.asan_dynamic-x86_64.lib;clang_rt.asan_dynamic_runtime_thunk-x86_64.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(AsanRuntimeDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

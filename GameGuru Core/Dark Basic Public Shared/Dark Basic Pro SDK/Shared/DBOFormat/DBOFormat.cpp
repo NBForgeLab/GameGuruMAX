@@ -3,6 +3,10 @@
 //
 
 #include "DBOFormat.h"
+#include <memory>
+#ifdef WICKEDENGINE
+#include "../../../../Guru-WickedMAX/DBOCompatibility.h"
+#endif
 #include "DBOFrame.h"
 #include "DBORawMesh.h"
 #include "DBOMesh.h"
@@ -192,25 +196,6 @@ cSpecialEffect::cSpecialEffect ( )
 {
 	// reset effect ptr
 	memset ( this, 0, sizeof(cSpecialEffect) );
-}
-
-cSpecialEffect::~cSpecialEffect ( )
-{
-	if ( m_dwRTTexCount>0 )
-	{
-		for ( DWORD t=0; t<m_dwRTTexCount; t++ )
-		{
-			SAFE_RELEASE ( m_pRTTex[t] );
-			SAFE_RELEASE ( m_pRTTexView[t] );
-		}
-	}
-
-	// free default zfile mesh
-	SAFE_DELETE ( m_pXFileMesh );
-
-	// free effect
-	SAFE_RELEASE ( m_pEffect );
-	SAFE_DELETE ( m_pDefaultXFile );
 }
 
 bool cSpecialEffect::CorrectFXFile ( LPSTR pFile, LPSTR pModifiedFile )
@@ -7536,7 +7521,7 @@ DARKSDK_DLL bool LoadDBO ( LPSTR pPassedInFilename, sObject** ppObject )
 		for (int n = 0; n < g_object_outputv.size(); n++)
 		{
 			int iSearchStrLen = strlen(pFilename);
-			if (strnicmp(g_object_outputv[n].pFilename + strlen(g_object_outputv[n].pFilename) - iSearchStrLen, pFilename, iSearchStrLen) == NULL)
+			if (strlen(g_object_outputv[n].pFilename) >= static_cast<size_t>(iSearchStrLen) && strnicmp(g_object_outputv[n].pFilename + strlen(g_object_outputv[n].pFilename) - iSearchStrLen, pFilename, iSearchStrLen) == NULL)
 			{
 				if (g_object_outputv[n].pData)
 				{
@@ -7558,15 +7543,21 @@ DARKSDK_DLL bool LoadDBO ( LPSTR pPassedInFilename, sObject** ppObject )
 		// construct the object
 		if (!DBOConvertBlockToObject((void*)pDBOBlock, dwBlockSize, ppObject))
 		{
+            delete[] static_cast<char*>(pDBOBlock);
+
 			char str[1024];
-			sprintf_s(str, "Failed to load object: %s", pFilename);
+			#ifdef WICKEDENGINE
+            sprintf_s(str, "Failed to load object: %s\n%s", pFilename, dbo::LastCompatibilityError().c_str());
+#else
+            sprintf_s(str, "Failed to load object: %s", pFilename);
+#endif
 			Message(0, str, "Error");
 			RunTimeError(RUNTIMEERROR_B3DOBJECTLOADFAILED);
 			return false;
 		}
 
 		// free block when done
-		SAFE_DELETE_ARRAY(pDBOBlock);
+		delete[] static_cast<char*>(pDBOBlock);
 	}
 	#ifndef WICKEDENGINE
 	else
@@ -7585,7 +7576,7 @@ DARKSDK_DLL bool LoadDBO ( LPSTR pPassedInFilename, sObject** ppObject )
 		}
 
 		// free block when done
-		SAFE_DELETE_ARRAY(pDBOBlock);
+		delete[] static_cast<char*>(pDBOBlock);
 
 	}
 	#endif
@@ -7615,14 +7606,8 @@ DARKSDK_DLL bool SaveDBO ( LPSTR pFilename, sObject* pObject )
 		return false;
 		
 	// save DBOBlock to file
-	if ( !DBOSaveBlockFile ( pFilename, (void*)pDBOBlock, dwBlockSize ) )
-		return false;
-
-	// free block when done
-	SAFE_DELETE(pDBOBlock);
-
-	// okay
-	return true;
+	std::unique_ptr<char[]> blockOwner(static_cast<char*>(pDBOBlock));
+	return DBOSaveBlockFile(pFilename, pDBOBlock, dwBlockSize);
 }
 
 DARKSDK_DLL bool CloneDBO ( sObject** ppDestObject, sObject* pSrcObject )
@@ -7636,14 +7621,8 @@ DARKSDK_DLL bool CloneDBO ( sObject** ppDestObject, sObject* pSrcObject )
 		return false;
 		
 	// construct the new destination object
-	if ( !DBOConvertBlockToObject ( pDBOBlock, dwBlockSize, ppDestObject ) )
-		return false;
-
-	// free block when done
-	SAFE_DELETE_ARRAY(pDBOBlock);
-
-	// okay
-	return true;
+	std::unique_ptr<char[]> blockOwner(static_cast<char*>(pDBOBlock));
+	return DBOConvertBlockToObject(pDBOBlock, dwBlockSize, ppDestObject);
 }
 
 // 310305 - mike - new function for allocating custom memory

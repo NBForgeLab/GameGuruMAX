@@ -18,10 +18,9 @@ DARKSDK_DLL int LoadDBOEx ( LPSTR pFilename, sObject** ppObject )
 	if ( !DBOLoadBlockFile ( pFilename, (void**)&pDBOBlock, &dwBlockSize ) )
 		return -1;
 
-	if ( !ConstructObject ( ppObject, (LPSTR*)&pDBOBlock ) )
-		return -2;
-
-	return 1;
+	const bool success = DBOConvertBlockToObject(pDBOBlock, dwBlockSize, ppObject);
+	delete[] static_cast<char*>(pDBOBlock);
+	return success ? 1 : -2;
 }
 
 DARKSDK_DLL int SaveDBOEx ( LPSTR pFilename, sObject* pObject )
@@ -35,12 +34,7 @@ DARKSDK_DLL int SaveDBOEx ( LPSTR pFilename, sObject* pObject )
 		return -2;
 		
 	// save DBOBlock to file
-	if ( !DBOSaveBlockFile ( pFilename, (void*)pDBOBlock, dwBlockSize ) )
-		return -3;
-
-	// free block when done
-	SAFE_DELETE(pDBOBlock);
-
-	// okay
-	return 1;
+	const bool saved = DBOSaveBlockFile(pFilename, pDBOBlock, dwBlockSize);
+	delete[] static_cast<char*>(pDBOBlock);
+	return saved ? 1 : -3;
 }

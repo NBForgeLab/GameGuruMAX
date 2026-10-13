@@ -188,6 +188,7 @@ sMesh::~sMesh ( )
 	SAFE_DELETE_ARRAY ( pMultiMaterial );
 	SAFE_DELETE ( pDrawBuffer );
 	SAFE_DELETE_ARRAY ( pAttributeWorkData );
+	SAFE_DELETE_ARRAY ( pSubFrameList );
 
 	if (dwIndexCountLOD1 > 0)
 		SAFE_DELETE_ARRAY(pIndicesLOD1);
@@ -310,11 +311,14 @@ sAnimation::~sAnimation ( )
 
 	SAFE_DELETE_ARRAY ( ppBoneFrames );
 
-	SAFE_DELETE ( pPositionKeys );
-	SAFE_DELETE ( pRotateKeys );
-	SAFE_DELETE ( pScaleKeys );
-	SAFE_DELETE ( pMatrixKeys );
-	SAFE_DELETE ( pNext );
+	SAFE_DELETE_ARRAY ( pPositionKeys );
+	SAFE_DELETE_ARRAY ( pRotateKeys );
+	SAFE_DELETE_ARRAY ( pScaleKeys );
+	SAFE_DELETE_ARRAY ( pMatrixKeys );
+	// Animation tracks can form long flat lists in valid files. Detach each node
+	// before deleting it so destruction does not recurse through the list.
+	sAnimation* next=pNext; pNext=NULL;
+	while(next) { sAnimation* following=next->pNext; next->pNext=NULL; delete next; next=following; }
 }
 
 sAnimationSet::sAnimationSet ( )
@@ -324,12 +328,13 @@ sAnimationSet::sAnimationSet ( )
 
 sAnimationSet::~sAnimationSet ( )
 {
-	SAFE_DELETE		  ( pvecBoundMin );
-	SAFE_DELETE		  ( pvecBoundMax );
-	SAFE_DELETE		  ( pvecBoundCenter );
-	SAFE_DELETE		  ( pfBoundRadius );
+	SAFE_DELETE_ARRAY ( pvecBoundMin );
+	SAFE_DELETE_ARRAY ( pvecBoundMax );
+	SAFE_DELETE_ARRAY ( pvecBoundCenter );
+	SAFE_DELETE_ARRAY ( pfBoundRadius );
 	SAFE_DELETE       ( pAnimation );
-	SAFE_DELETE       ( pNext );
+	sAnimationSet* next=pNext; pNext=NULL;
+	while(next) { sAnimationSet* following=next->pNext; next->pNext=NULL; delete next; next=following; }
 }
 
 sPositionData::sPositionData ( )
@@ -492,7 +497,7 @@ sObject::~sObject ( )
 				ppMeshList [ m ] = NULL;
 	
 	// delete any previously allocate memory
-	SAFE_DELETE		  ( pInstanceMeshVisible );
+	SAFE_DELETE_ARRAY ( pInstanceMeshVisible );
 	SAFE_DELETE       ( pFrame );
 	SAFE_DELETE       ( pAnimationSet );
 	SAFE_DELETE       ( pCharacterCreator );
@@ -507,7 +512,7 @@ sObject::~sObject ( )
 	SAFE_DELETE_ARRAY ( ppMeshList );
 
 	// U75 - 240909 - free if reserved this during callto SET OBJET FRAME (limb)
-	SAFE_DELETE ( pfAnimLimbFrame );
+	SAFE_DELETE_ARRAY ( pfAnimLimbFrame );
 }
 
 sObjectCustom::sObjectCustom ( )

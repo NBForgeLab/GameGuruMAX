@@ -13,6 +13,11 @@
 
 #include "DBOBlock.h"
 #include "CFileC.h"
+#include <memory>
+#include <limits>
+#ifdef WICKEDENGINE
+#include "../../../../Guru-WickedMAX/DBOCompatibility.h"
+#endif
 
 //////////////////////////////////////////////////////////////////////////////////
 // GLOBAL DATA ///////////////////////////////////////////////////////////////////
@@ -2038,7 +2043,7 @@ DARKSDK_DLL bool DBOConvertObjectToBlock ( sObject* pObject, void** ppBlock, DWO
 	if ( !ScanObject ( pObject, &pBlock, &dwBytePosition ) )
 	{
 		// could not parse object
-		SAFE_DELETE(pBlock);
+		delete[] pBlockBase;
 		return false;
 	}
 
@@ -2052,6 +2057,15 @@ DARKSDK_DLL bool DBOConvertObjectToBlock ( sObject* pObject, void** ppBlock, DWO
 
 DARKSDK_DLL bool DBOConvertBlockToObject ( void* pBlock, DWORD dwBlockSize, sObject** ppObject )
 {
+#ifdef WICKEDENGINE
+    // Every asset and CloneDBO uses the bounded decoder and owned metadata builder.
+    // The historical ConstructObject cursor has no length argument and must never
+    // receive untrusted data in MAX.
+    std::string error;
+    const bool success=dbo::DecodeCompatibilityObject(pBlock, dwBlockSize, ppObject, error);
+    if(!success) { OutputDebugStringA(error.c_str()); OutputDebugStringA("\n"); }
+    return success;
+#else
 	// U74 - used to track DBO sizes (to find bugs)
 	g_pBlockStart = (LPSTR)pBlock;
 
@@ -2064,28 +2078,30 @@ DARKSDK_DLL bool DBOConvertBlockToObject ( void* pBlock, DWORD dwBlockSize, sObj
 
 	// return okay
 	return true;
+#endif
 }
 
 DARKSDK_DLL bool DBOLoadBlockFile ( LPSTR pFilename, void** ppBlock, DWORD* pdwSize )
 {
-	// load file
-	HANDLE hfile = GG_CreateFile ( pFilename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
-	if ( hfile != INVALID_HANDLE_VALUE )
-	{
-		DWORD bytesread=0;
-		*pdwSize = GetFileSize ( hfile, NULL );
-		*ppBlock = (void*)new char[*pdwSize];
-		ReadFile( hfile, (LPSTR)(*ppBlock), *pdwSize, &bytesread, NULL ); 
-		CloseHandle ( hfile );
-	}
-	else
-	{
-		// could not load file
-		return false;
-	}
-
-	// okay
-	return true;
+    if (!pFilename || !ppBlock || !pdwSize) return false;
+    struct FileOwner {
+        HANDLE handle;
+        ~FileOwner() { if (handle != INVALID_HANDLE_VALUE) CloseHandle(handle); }
+    } file{ GG_CreateFile(pFilename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL) };
+    if (file.handle == INVALID_HANDLE_VALUE) return false;
+    LARGE_INTEGER size;
+    if (!GetFileSizeEx(file.handle, &size) || size.QuadPart <= 0 ||
+        static_cast<unsigned long long>(size.QuadPart) > (std::numeric_limits<DWORD>::max)()) return false;
+#ifdef WICKEDENGINE
+    if (static_cast<unsigned long long>(size.QuadPart) > dbo::Limits{}.maxFileBytes) return false;
+#endif
+    try {
+        std::unique_ptr<char[]> block(new char[static_cast<size_t>(size.QuadPart)]);
+        DWORD bytesRead=0;
+        const DWORD byteCount=static_cast<DWORD>(size.QuadPart);
+        if (!ReadFile(file.handle,block.get(),byteCount,&bytesRead,NULL) || bytesRead != byteCount) return false;
+        *ppBlock=block.release(); *pdwSize=byteCount; return true;
+    } catch (const std::bad_alloc&) { return false; }
 }
 
 DARKSDK_DLL bool DBOSaveBlockFile ( LPSTR pFilename, void* pBlock, DWORD dwSize )
