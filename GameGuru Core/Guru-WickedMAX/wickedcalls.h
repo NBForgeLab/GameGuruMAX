@@ -1,3 +1,4 @@
+#pragma once
 //
 // Wicked Calls Header
 //
@@ -6,6 +7,7 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include <cstdint>
 #include "..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\Objects\CObjectDataC.h"
 
 // Helps with CRASH LOG collection
@@ -122,6 +124,10 @@ float WickedCall_GetObjectRealFrame(sObject* pObject);
 bool WickedCall_GetObjectPlaying(sObject* pObject);
 void WickedCall_RemoveObject( sObject* pObject );
 void WickedCall_SetTexturePath ( LPSTR pPath );
+std::string WickedResolveTexturePath(const std::string& sRequestedName, const std::string& sTexturePath, const std::string& sGlobalPath, const std::string& sMeshInternalTexture, bool bAllowCategorySwap);
+std::string WickedResolveTexturePath(const std::string& sRequestedName, const std::string& sTexturePath, const std::string& sGlobalPath, const std::string& sMeshInternalTexture);
+std::string WickedResolveTexturePath(const std::string& sRequestedName, const std::string& sTexturePath, const std::string& sGlobalPath);
+std::string WickedResolveTexturePath(const std::string& sRequestedName);
 void WickedCall_TextureMesh ( sMesh* pMesh );
 void WickedCall_SetReflectance (sMesh* pMesh, float fReflectance);
 void WickedCall_SetObjectReflectance(sObject* pObject, float fReflectance);
@@ -280,4 +286,14 @@ void WickedCall_UpdateEmitters(void);
 uint32_t WickedCall_LoadWPE(char* filename);
 uint32_t WickedCall_CreateEmitter(std::string& name, float posX, float posY, float posZ, uint32_t proot);
 void WickedCall_SetShaderParameter(int obj, int parameter, float value);
+
+// Direct Wicked Entity operations (Decoupled from DBPro sObject)
+// Entity IDs cross this shared SDK boundary as uint32_t, the engine's Entity
+// representation. SDK consumers do not need the engine's ECS implementation.
+void WickedCall_SetEntityVisible(uint32_t entity, bool bVisible);
+void WickedCall_SetEntityPosition(uint32_t entity, float x, float y, float z);
+void WickedCall_SetEntityRotation(uint32_t entity, float x, float y, float z);
+void WickedCall_SetEntityScale(uint32_t entity, float x, float y, float z);
+void WickedCall_RemoveEntity(uint32_t entity);
+
 

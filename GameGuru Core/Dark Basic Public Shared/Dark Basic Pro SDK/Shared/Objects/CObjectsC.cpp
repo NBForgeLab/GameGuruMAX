@@ -2433,7 +2433,7 @@ DARKSDK_DLL void CloneObject ( int iDestinationID, int iSourceID, int iCloneShar
 					while ( pAnim != NULL )
 					{
 						// Erase Animation Data (matrix data usually huge)
-						SAFE_DELETE(pAnim->pMatrixKeys);
+						SAFE_DELETE_ARRAY(pAnim->pMatrixKeys);
 						pAnim->dwNumMatrixKeys=0;
 
 						// substitute with original objects anim data

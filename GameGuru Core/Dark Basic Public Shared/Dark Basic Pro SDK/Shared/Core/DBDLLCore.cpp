@@ -14,11 +14,7 @@
 #include "..\..\..\..\GameGuru\Include\preprocessor-flags.h"
 
 // Multiplayer Systems
-#ifdef PHOTONMP
-#include "PhotonCommands.h"
-#else
 #include "SteamCommands.h"
-#endif
 
 // External Includes
 #include "..\error\cerror.h"
@@ -53,21 +49,14 @@
 #include "CAnimation.h"
 #include "CFileC.h"
 #include "CMemblocks.h"
-#include "CFTPC.h"
 #include "CInputC.h"
 #include "CTextC.h"
 #include "CSystemC.h"
 #include "BulletPhysics.H"
 #include "BlitzTerrain.H"
-#include "DarkAI.H"
 #include "SoftwareCulling.h"
 #include "DarkLUA.h"
 #include "SimonReloaded.h"
-#ifdef PHOTONMP
-#include "PhotonCommands.h"
-#else
-#include "SteamCommands.h"
-#endif
 #include "LightMapper.h"
 #include "Enchancements.h"
 
@@ -2836,7 +2825,6 @@ DARKSDK void ConstructPostDLLItems(HINSTANCE hInstance,bool bNeededToCreateExtra
 	SystemConstructor();
 	SoundConstructor();
 	FileConstructor();
-	FTPConstructor();
 	MemblocksConstructor();
 	BitmapConstructor();
 	CameraConstructor();

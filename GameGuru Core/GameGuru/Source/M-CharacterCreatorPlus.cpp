@@ -1046,7 +1046,7 @@ void charactercreatorplus_change(char *path, int part, char* tag)
 
 		// Head is being changed as part of an auto-swap, so the skin tone must be matched to whatever it was before.
 		if (part != 2 && g_iPartsThatNeedReloaded[2] == 1)
-			strcpy(VariantColorPath_s.Get(), g_SkinTextureStorage);
+			VariantColorPath_s = g_SkinTextureStorage;
 		else if (part == 2 && g_iPartsThatNeedReloaded[2] == 1)
 		{
 			// The head was chosen specifically by the user, but currently a headgear that requires an auto swap is equipped.

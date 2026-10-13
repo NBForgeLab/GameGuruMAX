@@ -1135,7 +1135,7 @@ void WickedCall_RefreshObjectAnimations(sObject* pObject, void* pstateptr)
 					}
 
 					// remove matrix keys
-					SAFE_DELETE(pAnim->pMatrixKeys);
+					SAFE_DELETE_ARRAY ( pAnim->pMatrixKeys );
 					pAnim->dwNumMatrixKeys = 0;
 
 					// set the anim ptrs
@@ -1152,9 +1152,9 @@ void WickedCall_RefreshObjectAnimations(sObject* pObject, void* pstateptr)
 					memcpy ((char*)pNewSclKeys+(sizeof(sScaleKey)*pAnim->dwNumScaleKeys), pSclKeys, sizeof(sScaleKey)*dwNumKeys);
 
 					// set the new anim ptrs
-					SAFE_DELETE(pAnim->pPositionKeys);
-					SAFE_DELETE(pAnim->pRotateKeys);
-					SAFE_DELETE(pAnim->pScaleKeys);
+					SAFE_DELETE_ARRAY ( pAnim->pPositionKeys );
+					SAFE_DELETE_ARRAY ( pAnim->pRotateKeys );
+					SAFE_DELETE_ARRAY ( pAnim->pScaleKeys );
 					pAnim->pPositionKeys = pNewPosKeys;
 					pAnim->pRotateKeys = pNewRotKeys;
 					pAnim->pScaleKeys = pNewSclKeys;
@@ -1911,6 +1911,266 @@ void WickedCall_SetTexturePath(LPSTR pPath)
 	g_pWickedTexturePath = pPath;
 }
 
+// Helper: Case-insensitive search using standard C++
+static bool CaseInsensitiveContains(const std::string& str, const std::string& sub)
+{
+	if (sub.empty() || str.length() < sub.length()) return false;
+	auto it = std::search(
+		str.begin(), str.end(),
+		sub.begin(), sub.end(),
+		[](char ch1, char ch2) { return tolower((unsigned char)ch1) == tolower((unsigned char)ch2); }
+	);
+	return (it != str.end());
+}
+
+// Helper: Case-insensitive replace using standard C++
+static std::string CaseInsensitiveReplace(const std::string& str, const std::string& from, const std::string& to)
+{
+	if (from.empty()) return str;
+	std::string result = str;
+	size_t pos = 0;
+	while (pos < result.length())
+	{
+		auto it = std::search(
+			result.begin() + pos, result.end(),
+			from.begin(), from.end(),
+			[](char ch1, char ch2) { return tolower((unsigned char)ch1) == tolower((unsigned char)ch2); }
+		);
+		if (it == result.end()) break;
+		size_t matchIdx = std::distance(result.begin(), it);
+		result.replace(matchIdx, from.length(), to);
+		pos = matchIdx + to.length();
+	}
+	return result;
+}
+
+static bool DoesFileExist(const std::string& path)
+{
+	if (path.empty()) return false;
+	DWORD attrib = GetFileAttributesA(path.c_str());
+	return (attrib != INVALID_FILE_ATTRIBUTES && !(attrib & FILE_ATTRIBUTE_DIRECTORY));
+}
+
+// Helper: Tests if a file exists (directly, or with/without Files\ prefix)
+static bool TryResolveExistingFile(const std::string& path, std::string& outPath)
+{
+	if (path.empty()) return false;
+
+	// Direct check
+	if (DoesFileExist(path))
+	{
+		outPath = path;
+		return true;
+	}
+
+	// Try without "Files\" if path starts with it
+	if (path.length() > 6 && (strnicmp(path.c_str(), "Files\\", 6) == 0 || strnicmp(path.c_str(), "Files/", 6) == 0))
+	{
+		std::string stripped = path.substr(6);
+		if (DoesFileExist(stripped))
+		{
+			outPath = stripped;
+			return true;
+		}
+	}
+	else
+	{
+		// Try with "Files\" prefix
+		std::string withFiles = "Files\\" + path;
+		if (DoesFileExist(withFiles))
+		{
+			outPath = withFiles;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// Helper: Probes extension swap (.png <-> .dds) and variant suffixes
+static bool ProbeTextureVariants(const std::string& basePath, std::string& outPath)
+{
+	if (basePath.empty()) return false;
+
+	// 1. Direct check
+	if (TryResolveExistingFile(basePath, outPath)) return true;
+
+	// 2. Extension swap: .dds <-> .png
+	size_t dotPos = basePath.rfind('.');
+	if (dotPos != std::string::npos)
+	{
+		std::string ext = basePath.substr(dotPos);
+		std::string withoutExt = basePath.substr(0, dotPos);
+		if (stricmp(ext.c_str(), ".dds") == 0)
+		{
+			if (TryResolveExistingFile(withoutExt + ".png", outPath)) return true;
+		}
+		else if (stricmp(ext.c_str(), ".png") == 0)
+		{
+			if (TryResolveExistingFile(withoutExt + ".dds", outPath)) return true;
+		}
+	}
+
+	// 3. Variant letter suffix probe
+	size_t slashPos = basePath.find_last_of("\\/");
+	std::string dir = (slashPos != std::string::npos) ? basePath.substr(0, slashPos + 1) : "";
+	std::string filename = (slashPos != std::string::npos) ? basePath.substr(slashPos + 1) : basePath;
+
+	dotPos = filename.rfind('.');
+	if (dotPos != std::string::npos)
+	{
+		std::string ext = filename.substr(dotPos);
+		std::string nameNoExt = filename.substr(0, dotPos);
+
+		size_t underscorePos = nameNoExt.rfind('_');
+		std::string stem = "";
+		std::string mapSuffix = "";
+		if (underscorePos != std::string::npos && underscorePos > 0)
+		{
+			stem = nameNoExt.substr(0, underscorePos);
+			mapSuffix = nameNoExt.substr(underscorePos) + ext; // e.g. "_color.dds"
+		}
+		else
+		{
+			stem = nameNoExt;
+			mapSuffix = ext;
+		}
+
+		if (!stem.empty())
+		{
+			char lastChar = stem.back();
+			// If stem ends in a digit (e.g. "hair 11"), probe letters 'b', 'a', 'c', 'd', 'e', 'f', 'g'
+			if (isdigit((unsigned char)lastChar))
+			{
+				const char variants[] = { 'b', 'a', 'c', 'd', 'e', 'f', 'g' };
+				for (char v : variants)
+				{
+					std::string probe = dir + stem + v + mapSuffix;
+					if (TryResolveExistingFile(probe, outPath)) return true;
+				}
+			}
+			// If stem ends in a letter preceded by a digit (e.g. "head 16b"), probe stripped or other letters
+			else if (isalpha((unsigned char)lastChar) && stem.length() >= 2 && isdigit((unsigned char)stem[stem.length() - 2]))
+			{
+				std::string stemNoLetter = stem.substr(0, stem.length() - 1);
+				// Probe without the letter (e.g. "head 16_color.dds"):
+				std::string probe = dir + stemNoLetter + mapSuffix;
+				if (TryResolveExistingFile(probe, outPath)) return true;
+
+				// Probe other variant letters:
+				const char variants[] = { 'b', 'a', 'c', 'd', 'e', 'f', 'g' };
+				for (char v : variants)
+				{
+					if (tolower((unsigned char)v) != tolower((unsigned char)lastChar))
+					{
+						std::string probeV = dir + stemNoLetter + v + mapSuffix;
+						if (TryResolveExistingFile(probeV, outPath)) return true;
+					}
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
+std::string WickedResolveTexturePath(const std::string& sRequestedName, const std::string& sTexturePath, const std::string& sGlobalPath, const std::string& sMeshInternalTexture, bool bAllowCategorySwap)
+{
+	if (sRequestedName.empty() && sMeshInternalTexture.empty())
+		return "";
+
+	std::string outPath = "";
+
+	// Build candidate paths in order of highest probability
+	std::vector<std::string> candidates;
+	if (!sRequestedName.empty())
+	{
+		if (!sTexturePath.empty()) candidates.push_back(sTexturePath + sRequestedName);
+		if (!sGlobalPath.empty()) candidates.push_back(sGlobalPath + sRequestedName);
+		candidates.push_back(sRequestedName);
+	}
+
+	// Also test candidates using sMeshInternalTexture if provided and different
+	if (!sMeshInternalTexture.empty() && sMeshInternalTexture != sRequestedName)
+	{
+		if (!sTexturePath.empty()) candidates.push_back(sTexturePath + sMeshInternalTexture);
+		if (!sGlobalPath.empty()) candidates.push_back(sGlobalPath + sMeshInternalTexture);
+		candidates.push_back(sMeshInternalTexture);
+	}
+
+	// 1. Direct and variant probe on all candidates
+	for (const auto& cand : candidates)
+	{
+		if (ProbeTextureVariants(cand, outPath))
+			return outPath;
+	}
+
+	// 2. Cross-category / Modular Part Directory probe (Character Creator Plus parts)
+	if (bAllowCategorySwap)
+	{
+		const std::pair<const char*, const char*> swaps[] = {
+			{ "adult female", "adult male" },
+			{ "adult male", "adult female" },
+			{ "zombie female", "zombie male" },
+			{ "zombie male", "zombie female" }
+		};
+
+		for (const auto& cand : candidates)
+		{
+			if (CaseInsensitiveContains(cand, "charactercreatorplus"))
+			{
+				for (const auto& sw : swaps)
+				{
+					if (CaseInsensitiveContains(cand, sw.first))
+					{
+						std::string swapped = CaseInsensitiveReplace(cand, sw.first, sw.second);
+						std::string resolvedSwapped = WickedResolveTexturePath(swapped, "", "", "", false);
+						if (!resolvedSwapped.empty())
+							return resolvedSwapped;
+					}
+				}
+			}
+		}
+	}
+
+	// 3. Fallback: Filename only inside sGlobalPath or sTexturePath
+	std::string fn = "";
+	size_t slashPos = sRequestedName.find_last_of("\\/");
+	if (slashPos != std::string::npos) fn = sRequestedName.substr(slashPos + 1);
+	else fn = sRequestedName;
+
+	if (!fn.empty())
+	{
+		if (!sGlobalPath.empty())
+		{
+			std::string probe = sGlobalPath + fn;
+			if (ProbeTextureVariants(probe, outPath)) return outPath;
+		}
+		if (!sTexturePath.empty())
+		{
+			std::string probe = sTexturePath + fn;
+			if (ProbeTextureVariants(probe, outPath)) return outPath;
+		}
+	}
+
+	return "";
+}
+
+std::string WickedResolveTexturePath(const std::string& sRequestedName, const std::string& sTexturePath, const std::string& sGlobalPath, const std::string& sMeshInternalTexture)
+{
+	return WickedResolveTexturePath(sRequestedName, sTexturePath, sGlobalPath, sMeshInternalTexture, true);
+}
+
+std::string WickedResolveTexturePath(const std::string& sRequestedName, const std::string& sTexturePath, const std::string& sGlobalPath)
+{
+	return WickedResolveTexturePath(sRequestedName, sTexturePath, sGlobalPath, "", true);
+}
+
+std::string WickedResolveTexturePath(const std::string& sRequestedName)
+{
+	return WickedResolveTexturePath(sRequestedName, "", "", "", true);
+}
+
 void WickedCall_TextureMesh(sMesh* pMesh)
 {
 	if (pMesh)
@@ -1934,7 +2194,7 @@ void WickedCall_TextureMesh(sMesh* pMesh)
 				}
 
 				// get mesh texture filename
-				char* pTextureFilename = pMesh->pTextures[0].pName;
+				char* pTextureFilename = (pMesh->dwTextureCount > 0 && pMesh->pTextures) ? pMesh->pTextures[0].pName : nullptr;
 
 				//PE: check if we can find a multimaterial textures.
 				if (pTextureFilename && strlen(pTextureFilename) < 1)
@@ -1947,11 +2207,13 @@ void WickedCall_TextureMesh(sMesh* pMesh)
 						}
 					}
 				}
-				std::string sTextureFilenameBase = pTextureFilename;
+				std::string sTextureFilenameBase = pTextureFilename ? pTextureFilename : "";
 
 				// get material from mesh
+				if (mesh->subsets.empty()) return;
 				uint64_t materialEntity = mesh->subsets[0].materialID;
 				wiScene::MaterialComponent* pObjectMaterial = wiScene::GetScene().materials.GetComponent(materialEntity);
+				if (!pObjectMaterial) return;
 
 				// set DEFAULT RAW material values
 				pObjectMaterial->baseColor = XMFLOAT4(1, 1, 1, 1);
@@ -2037,34 +2299,19 @@ void WickedCall_TextureMesh(sMesh* pMesh)
 					bool bFound = false;
 					//PE: Optimize by hit rate.
 					cstr sBaseColor = WickedGetBaseColorName();
-					if (sFoundTexturePath.size() <= 0)
+					std::string sResolvedBase = WickedResolveTexturePath(sBaseColor.Get(), sFoundTexturePath, g_pWickedTexturePath, sTextureFilenameBase);
+					if (sResolvedBase.empty() && !sTextureFilenameBase.empty())
 					{
-						//PE: Better hit rate.
-						sFoundFinalPathAndFilename = g_pWickedTexturePath + sBaseColor.Get();
-						if (FileExistPrefDDS((LPSTR)sFoundFinalPathAndFilename.c_str()) == 0)
-						{
-							sFoundFinalPathAndFilename = sFoundTexturePath + sBaseColor.Get();
-							if (FileExistPrefDDS((LPSTR)sFoundFinalPathAndFilename.c_str()) == 0)
-								sFoundFinalPathAndFilename = sBaseColor.Get();
-							else
-								bFound = true;
-						}
-						else
-							bFound = true;
+						sResolvedBase = WickedResolveTexturePath(sTextureFilenameBase, sFoundTexturePath, g_pWickedTexturePath);
+					}
+					if (!sResolvedBase.empty())
+					{
+						sFoundFinalPathAndFilename = sResolvedBase;
+						bFound = true;
 					}
 					else
 					{
-						sFoundFinalPathAndFilename = sFoundTexturePath + sBaseColor.Get();
-						if (FileExistPrefDDS((LPSTR)sFoundFinalPathAndFilename.c_str()) == 0)
-						{
-							sFoundFinalPathAndFilename = g_pWickedTexturePath + sBaseColor.Get();
-							if (FileExistPrefDDS((LPSTR)sFoundFinalPathAndFilename.c_str()) == 0)
-								sFoundFinalPathAndFilename = sBaseColor.Get();
-							else
-								bFound = true;
-						}
-						else
-							bFound = true;
+						sFoundFinalPathAndFilename = sBaseColor.Get();
 					}
 					if (bFound || FileExistPrefDDS((LPSTR)sFoundFinalPathAndFilename.c_str()) == 1)
 					{
@@ -2099,7 +2346,8 @@ void WickedCall_TextureMesh(sMesh* pMesh)
 						if (pObjectMaterial->textures[MaterialComponent::BASECOLORMAP].resource)
 						{
 							//PE: save full path as g_pWickedTexturePath is lost later.
-							strcpy(pMesh->pTextures[0].pName, sFoundFinalPathAndFilename.c_str());
+							if (pMesh->dwTextureCount > 0 && pMesh->pTextures)
+								strcpy(pMesh->pTextures[0].pName, sFoundFinalPathAndFilename.c_str());
 
 							//TODO: Get AlphaRef.
 							float fAlphaRef = WickedGetAlphaRef();
@@ -2107,24 +2355,14 @@ void WickedCall_TextureMesh(sMesh* pMesh)
 							pObjectMaterial->SetAlphaRef(fAlphaRef);
 
 							//Normalmap.
-							if (sFoundTexturePath.size() <= 0)
+							std::string sResolvedNormal = WickedResolveTexturePath(WickedGetNormalName().Get(), sFoundTexturePath, g_pWickedTexturePath);
+							if (!sResolvedNormal.empty())
 							{
-								//PE: Best hit rate.
-								sFoundFinalPathAndFilename = g_pWickedTexturePath + WickedGetNormalName().Get();
-								if (FileExistPrefDDS((LPSTR)sFoundFinalPathAndFilename.c_str()) == 0)
-								{
-									sFoundFinalPathAndFilename = WickedGetNormalName().Get();
-								}
+								sFoundFinalPathAndFilename = sResolvedNormal;
 							}
 							else
 							{
-								sFoundFinalPathAndFilename = sFoundTexturePath + WickedGetNormalName().Get();
-								if (FileExistPrefDDS((LPSTR)sFoundFinalPathAndFilename.c_str()) == 0)
-								{
-									sFoundFinalPathAndFilename = g_pWickedTexturePath + WickedGetNormalName().Get();
-									if (FileExistPrefDDS((LPSTR)sFoundFinalPathAndFilename.c_str()) == 0)
-										sFoundFinalPathAndFilename = WickedGetNormalName().Get();
-								}
+								sFoundFinalPathAndFilename = WickedGetNormalName().Get();
 							}
 							if (pObjectMaterial->textures[MaterialComponent::NORMALMAP].resource) //PE: Delete first if already active.
 							{
@@ -2166,24 +2404,14 @@ void WickedCall_TextureMesh(sMesh* pMesh)
 							}
 
 							//Surface.
-							if (sFoundTexturePath.size() <= 0)
+							std::string sResolvedSurface = WickedResolveTexturePath(WickedGetSurfaceName().Get(), sFoundTexturePath, g_pWickedTexturePath);
+							if (!sResolvedSurface.empty())
 							{
-								//PE: Best hit rate.
-								sFoundFinalPathAndFilename = g_pWickedTexturePath + WickedGetSurfaceName().Get();
-								if (FileExistPrefDDS((LPSTR)sFoundFinalPathAndFilename.c_str()) == 0)
-								{
-									sFoundFinalPathAndFilename = WickedGetSurfaceName().Get();
-								}
+								sFoundFinalPathAndFilename = sResolvedSurface;
 							}
 							else
 							{
-								sFoundFinalPathAndFilename = sFoundTexturePath + WickedGetSurfaceName().Get();
-								if (FileExistPrefDDS((LPSTR)sFoundFinalPathAndFilename.c_str()) == 0)
-								{
-									sFoundFinalPathAndFilename = g_pWickedTexturePath + WickedGetSurfaceName().Get();
-									if (FileExistPrefDDS((LPSTR)sFoundFinalPathAndFilename.c_str()) == 0)
-										sFoundFinalPathAndFilename = WickedGetSurfaceName().Get();
-								}
+								sFoundFinalPathAndFilename = WickedGetSurfaceName().Get();
 							}
 
 							if (pObjectMaterial->textures[MaterialComponent::SURFACEMAP].resource) //PE: Delete first if already active.
@@ -2232,12 +2460,14 @@ void WickedCall_TextureMesh(sMesh* pMesh)
 
 							// Parallax Occlusion Mapping (if HEIGHT TEXTURE used)
 							bool bPOMShaderRequired = false;
-							sFoundFinalPathAndFilename = sFoundTexturePath + WickedGetDisplacementName().Get();
-							if (FileExistPrefDDS((LPSTR)sFoundFinalPathAndFilename.c_str()) == 0)
+							std::string sResolvedDisplacement = WickedResolveTexturePath(WickedGetDisplacementName().Get(), sFoundTexturePath, g_pWickedTexturePath);
+							if (!sResolvedDisplacement.empty())
 							{
-								sFoundFinalPathAndFilename = g_pWickedTexturePath + WickedGetDisplacementName().Get();
-								if (FileExistPrefDDS((LPSTR)sFoundFinalPathAndFilename.c_str()) == 0)
-									sFoundFinalPathAndFilename = WickedGetDisplacementName().Get();
+								sFoundFinalPathAndFilename = sResolvedDisplacement;
+							}
+							else
+							{
+								sFoundFinalPathAndFilename = WickedGetDisplacementName().Get();
 							}
 							if (pObjectMaterial->textures[MaterialComponent::DISPLACEMENTMAP].resource)
 							{
@@ -2291,28 +2521,14 @@ void WickedCall_TextureMesh(sMesh* pMesh)
 							}
 
 							//Emissive.
-							if (sFoundTexturePath.size() <= 0)
+							std::string sResolvedEmissive = WickedResolveTexturePath(WickedGetEmissiveName().Get(), sFoundTexturePath, g_pWickedTexturePath);
+							if (!sResolvedEmissive.empty())
 							{
-								//PE: Best hit rate.
-								sFoundFinalPathAndFilename = g_pWickedTexturePath + WickedGetEmissiveName().Get();
-								if (FileExistPrefDDS((LPSTR)sFoundFinalPathAndFilename.c_str()) == 0)
-								{
-									//PE: Check not needed sFoundTexturePath empty.
-									sFoundFinalPathAndFilename = WickedGetEmissiveName().Get();
-								}
+								sFoundFinalPathAndFilename = sResolvedEmissive;
 							}
 							else
 							{
-								//PE: Get a crash here ?
-								std::string ename = WickedGetEmissiveName().Get();
-								sFoundFinalPathAndFilename = sFoundTexturePath;
-								sFoundFinalPathAndFilename = sFoundFinalPathAndFilename + ename;
-								if (FileExistPrefDDS((LPSTR)sFoundFinalPathAndFilename.c_str()) == 0)
-								{
-									sFoundFinalPathAndFilename = g_pWickedTexturePath + WickedGetEmissiveName().Get();
-									if (FileExistPrefDDS((LPSTR)sFoundFinalPathAndFilename.c_str()) == 0)
-										sFoundFinalPathAndFilename = WickedGetEmissiveName().Get();
-								}
+								sFoundFinalPathAndFilename = WickedGetEmissiveName().Get();
 							}
 							if (pObjectMaterial->textures[MaterialComponent::EMISSIVEMAP].resource) //PE: Delete first if already active.
 							{
@@ -2644,29 +2860,44 @@ void WickedCall_TextureMesh(sMesh* pMesh)
 						wiJobSystem::Wait(ctx);
 					}
 
-					// go through all permutations until we find the texture
-					for (int findit = 0; findit <= 5; findit++)
+					// go through canonical resolver or permutations until we find the texture
+					std::string sResolvedFallback = WickedResolveTexturePath(sTextureFilenameBase, sFoundTexturePath, g_pWickedTexturePath);
+					if (sResolvedFallback.empty())
 					{
-						if (findit == 0) { sFoundFinalPathAndFilename = sFoundTexturePath + sFoundTextureFilename + sFoundTextureType; }
-						if (findit == 1) { sFoundFinalPathAndFilename = g_pWickedTexturePath + sFoundTextureFilename + sFoundTextureType; }
-						if (findit == 2) { sFoundTextureType = ".dds"; sFoundFinalPathAndFilename = sFoundTexturePath + sFoundTextureFilename + sFoundTextureType; }
-						if (findit == 3) { sFoundTextureType = ".dds"; sFoundFinalPathAndFilename = g_pWickedTexturePath + sFoundTextureFilename + sFoundTextureType; }
-						if (findit == 4) { sFoundTextureType = ".png"; sFoundFinalPathAndFilename = sFoundTexturePath + sFoundTextureFilename + sFoundTextureType; }
-						if (findit == 5) { sFoundTextureType = ".png"; sFoundFinalPathAndFilename = g_pWickedTexturePath + sFoundTextureFilename + sFoundTextureType; }
+						for (int findit = 0; findit <= 5; findit++)
+						{
+							if (findit == 0) { sFoundFinalPathAndFilename = sFoundTexturePath + sFoundTextureFilename + sFoundTextureType; }
+							if (findit == 1) { sFoundFinalPathAndFilename = g_pWickedTexturePath + sFoundTextureFilename + sFoundTextureType; }
+							if (findit == 2) { sFoundTextureType = ".dds"; sFoundFinalPathAndFilename = sFoundTexturePath + sFoundTextureFilename + sFoundTextureType; }
+							if (findit == 3) { sFoundTextureType = ".dds"; sFoundFinalPathAndFilename = g_pWickedTexturePath + sFoundTextureFilename + sFoundTextureType; }
+							if (findit == 4) { sFoundTextureType = ".png"; sFoundFinalPathAndFilename = sFoundTexturePath + sFoundTextureFilename + sFoundTextureType; }
+							if (findit == 5) { sFoundTextureType = ".png"; sFoundFinalPathAndFilename = g_pWickedTexturePath + sFoundTextureFilename + sFoundTextureType; }
 
+							pObjectMaterial->textures[MaterialComponent::BASECOLORMAP].name = sFoundFinalPathAndFilename;
+							pObjectMaterial->textures[MaterialComponent::BASECOLORMAP].resource = WickedCall_LoadImage(pObjectMaterial->textures[MaterialComponent::BASECOLORMAP].name);
+							if (pObjectMaterial->textures[MaterialComponent::BASECOLORMAP].resource)
+							{
+								bFoundTextureToLoad = true;
+								if (pMesh->dwTextureCount > 0 && pMesh->pTextures)
+									strcpy(pMesh->pTextures[0].pName, sFoundFinalPathAndFilename.c_str());
+								break;
+							}
+							else
+							{
+								pObjectMaterial->textures[MaterialComponent::BASECOLORMAP].name = "";
+							}
+						}
+					}
+					else
+					{
+						sFoundFinalPathAndFilename = sResolvedFallback;
 						pObjectMaterial->textures[MaterialComponent::BASECOLORMAP].name = sFoundFinalPathAndFilename;
 						pObjectMaterial->textures[MaterialComponent::BASECOLORMAP].resource = WickedCall_LoadImage(pObjectMaterial->textures[MaterialComponent::BASECOLORMAP].name);
 						if (pObjectMaterial->textures[MaterialComponent::BASECOLORMAP].resource)
 						{
-							// found the texture file location and type
-							// carried in sFoundFinalPathAndFilename
 							bFoundTextureToLoad = true;
-
-							//PE: For "CloneObject" we need to update. pMesh->pTextures[0].pName
-							//PE: To the full path as g_pWickedTexturePath is lost later.
-							strcpy(pMesh->pTextures[0].pName, sFoundFinalPathAndFilename.c_str());
-
-							break;
+							if (pMesh->dwTextureCount > 0 && pMesh->pTextures)
+								strcpy(pMesh->pTextures[0].pName, sFoundFinalPathAndFilename.c_str());
 						}
 						else
 						{
@@ -2685,12 +2916,16 @@ void WickedCall_TextureMesh(sMesh* pMesh)
 							wiJobSystem::context ctx;
 							wiJobSystem::Wait(ctx);
 						}
-						pObjectMaterial->textures[MaterialComponent::NORMALMAP].name = pMesh->pTextures[GG_MESH_TEXTURE_NORMAL].pName;
-						if (!FileExist((char*)pObjectMaterial->textures[MaterialComponent::NORMALMAP].name.c_str())) pObjectMaterial->textures[MaterialComponent::NORMALMAP].name = "";
+						std::string sResolvedNorm = WickedResolveTexturePath(pMesh->pTextures[GG_MESH_TEXTURE_NORMAL].pName, sFoundTexturePath, g_pWickedTexturePath);
+						pObjectMaterial->textures[MaterialComponent::NORMALMAP].name = !sResolvedNorm.empty() ? sResolvedNorm : pMesh->pTextures[GG_MESH_TEXTURE_NORMAL].pName;
+						pObjectMaterial->textures[MaterialComponent::NORMALMAP].resource = WickedCall_LoadImage(pObjectMaterial->textures[MaterialComponent::NORMALMAP].name);
+						if (pObjectMaterial->textures[MaterialComponent::NORMALMAP].resource)
+						{
+							bGotNormalTexture = true;
+						}
 						else
 						{
-							pObjectMaterial->textures[MaterialComponent::NORMALMAP].resource = WickedCall_LoadImage(pObjectMaterial->textures[MaterialComponent::NORMALMAP].name);
-							bGotNormalTexture = true;
+							pObjectMaterial->textures[MaterialComponent::NORMALMAP].name = "";
 						}
 					}
 
@@ -2705,15 +2940,18 @@ void WickedCall_TextureMesh(sMesh* pMesh)
 							wiJobSystem::context ctx;
 							wiJobSystem::Wait(ctx);
 						}
-						pObjectMaterial->textures[MaterialComponent::SURFACEMAP].name = pMesh->pTextures[GG_MESH_TEXTURE_SURFACE].pName;
-						if (!FileExist((char*)pObjectMaterial->textures[MaterialComponent::SURFACEMAP].name.c_str())) 
-							pObjectMaterial->textures[MaterialComponent::SURFACEMAP].name = "";
-						else
+						std::string sResolvedSurf = WickedResolveTexturePath(pMesh->pTextures[GG_MESH_TEXTURE_SURFACE].pName, sFoundTexturePath, g_pWickedTexturePath);
+						pObjectMaterial->textures[MaterialComponent::SURFACEMAP].name = !sResolvedSurf.empty() ? sResolvedSurf : pMesh->pTextures[GG_MESH_TEXTURE_SURFACE].pName;
+						pObjectMaterial->textures[MaterialComponent::SURFACEMAP].resource = WickedCall_LoadImage(pObjectMaterial->textures[MaterialComponent::SURFACEMAP].name);
+						if (pObjectMaterial->textures[MaterialComponent::SURFACEMAP].resource)
 						{
-							pObjectMaterial->textures[MaterialComponent::SURFACEMAP].resource = WickedCall_LoadImage(pObjectMaterial->textures[MaterialComponent::SURFACEMAP].name);
 							pObjectMaterial->SetOcclusionEnabled_Primary(true);
 							pObjectMaterial->SetOcclusionEnabled_Secondary(false);
 							bGotSurfaceTexture = true;
+						}
+						else
+						{
+							pObjectMaterial->textures[MaterialComponent::SURFACEMAP].name = "";
 						}
 					}
 					if ( pMesh->dwTextureCount > GG_MESH_TEXTURE_EMISSIVE && *(pMesh->pTextures[GG_MESH_TEXTURE_EMISSIVE].pName) )
@@ -2727,12 +2965,16 @@ void WickedCall_TextureMesh(sMesh* pMesh)
 							wiJobSystem::context ctx;
 							wiJobSystem::Wait(ctx);
 						}
-						pObjectMaterial->textures[MaterialComponent::EMISSIVEMAP].name = pMesh->pTextures[GG_MESH_TEXTURE_EMISSIVE].pName;
-						if (!FileExist((char*)pObjectMaterial->textures[MaterialComponent::EMISSIVEMAP].name.c_str())) pObjectMaterial->textures[MaterialComponent::EMISSIVEMAP].name = "";
+						std::string sResolvedEmiss = WickedResolveTexturePath(pMesh->pTextures[GG_MESH_TEXTURE_EMISSIVE].pName, sFoundTexturePath, g_pWickedTexturePath);
+						pObjectMaterial->textures[MaterialComponent::EMISSIVEMAP].name = !sResolvedEmiss.empty() ? sResolvedEmiss : pMesh->pTextures[GG_MESH_TEXTURE_EMISSIVE].pName;
+						pObjectMaterial->textures[MaterialComponent::EMISSIVEMAP].resource = WickedCall_LoadImage(pObjectMaterial->textures[MaterialComponent::EMISSIVEMAP].name);
+						if (pObjectMaterial->textures[MaterialComponent::EMISSIVEMAP].resource)
+						{
+							bGotEmissiveTexture = true;
+						}
 						else
 						{
-							pObjectMaterial->textures[MaterialComponent::EMISSIVEMAP].resource = WickedCall_LoadImage(pObjectMaterial->textures[MaterialComponent::EMISSIVEMAP].name);
-							bGotEmissiveTexture = true;
+							pObjectMaterial->textures[MaterialComponent::EMISSIVEMAP].name = "";
 						}
 					}
 
@@ -8133,5 +8375,53 @@ void WickedCall_SetShaderParameter(int obj, int parameter , float value)
 	}
 
 }
+
+void WickedCall_SetEntityVisible(wiECS::Entity entity, bool bVisible)
+{
+	if (entity == wiECS::INVALID_ENTITY) return;
+	auto* obj = wiScene::GetScene().objects.GetComponent(entity);
+	if (obj) obj->SetRenderable(bVisible);
+}
+
+void WickedCall_SetEntityPosition(wiECS::Entity entity, float x, float y, float z)
+{
+	if (entity == wiECS::INVALID_ENTITY) return;
+	auto* transform = wiScene::GetScene().transforms.GetComponent(entity);
+	if (transform)
+	{
+		transform->translation_local = XMFLOAT3(x, y, z);
+		transform->SetDirty();
+	}
+}
+
+void WickedCall_SetEntityRotation(wiECS::Entity entity, float x, float y, float z)
+{
+	if (entity == wiECS::INVALID_ENTITY) return;
+	auto* transform = wiScene::GetScene().transforms.GetComponent(entity);
+	if (transform)
+	{
+		XMVECTOR q = XMQuaternionRotationRollPitchYaw(XMConvertToRadians(x), XMConvertToRadians(y), XMConvertToRadians(z));
+		XMStoreFloat4(&transform->rotation_local, q);
+		transform->SetDirty();
+	}
+}
+
+void WickedCall_SetEntityScale(wiECS::Entity entity, float x, float y, float z)
+{
+	if (entity == wiECS::INVALID_ENTITY) return;
+	auto* transform = wiScene::GetScene().transforms.GetComponent(entity);
+	if (transform)
+	{
+		transform->scale_local = XMFLOAT3(x, y, z);
+		transform->SetDirty();
+	}
+}
+
+void WickedCall_RemoveEntity(wiECS::Entity entity)
+{
+	if (entity == wiECS::INVALID_ENTITY) return;
+	wiScene::GetScene().Entity_Remove(entity);
+}
+
 
 

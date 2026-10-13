@@ -8,6 +8,7 @@
 #include "gameguru.h"
 
 #include "..\Imgui\imgui.h"
+#include "..\Imgui\imgui_cstr.h"
 #ifndef IMGUI_DEFINE_MATH_OPERATORS
 #define IMGUI_DEFINE_MATH_OPERATORS
 #endif
@@ -3479,7 +3480,7 @@ void imgui_Customize_Terrain(int mode)
 						ImGui::Text("Enter a name for your terrain texture:");
 						if (ImGui::IsRootWindowOrAnyChildFocused() && !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0))
 							ImGui::SetKeyboardFocusHere(0);
-						if (ImGui::InputText(sUniqueInputName.Get(), t.visuals.sTerrainTexturesName[iL].Get(), 250, ImGuiInputTextFlags_EnterReturnsTrue)) {
+						if (ImGui::InputTextBounded<250>(sUniqueInputName.Get(), t.visuals.sTerrainTexturesName[iL], ImGuiInputTextFlags_EnterReturnsTrue)) {
 							t.gamevisuals.sTerrainTexturesName[iL] = t.visuals.sTerrainTexturesName[iL];
 							bTextureNameWindow[iL] = false;
 						}
@@ -4033,7 +4034,7 @@ void imgui_Customize_Terrain_v3(int mode)
 						ImGui::Text("Enter a name for your terrain texture:");
 						if (ImGui::IsRootWindowOrAnyChildFocused() && !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0))
 							ImGui::SetKeyboardFocusHere(0);
-						if (ImGui::InputText(sUniqueInputName.Get(), t.visuals.sTerrainTexturesName[iL].Get(), 250, ImGuiInputTextFlags_EnterReturnsTrue)) {
+						if (ImGui::InputTextBounded<250>(sUniqueInputName.Get(), t.visuals.sTerrainTexturesName[iL], ImGuiInputTextFlags_EnterReturnsTrue)) {
 							t.gamevisuals.sTerrainTexturesName[iL] = t.visuals.sTerrainTexturesName[iL];
 							bTextureNameWindow[iL] = false;
 						}
@@ -5545,7 +5546,7 @@ void imgui_Customize_Vegetation(int mode)
 						if (ImGui::IsRootWindowOrAnyChildFocused() && !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0))
 							ImGui::SetKeyboardFocusHere(0);
 
-						if (ImGui::InputText(sUniqueInputName.Get(), t.visuals.sGrassTexturesName[iL].Get(), 250, ImGuiInputTextFlags_EnterReturnsTrue)) {
+						if (ImGui::InputTextBounded<250>(sUniqueInputName.Get(), t.visuals.sGrassTexturesName[iL], ImGuiInputTextFlags_EnterReturnsTrue)) {
 							t.gamevisuals.sGrassTexturesName[iL] = t.visuals.sGrassTexturesName[iL];
 							bGrassNameWindow[iL] = false;
 						}
@@ -12055,8 +12056,8 @@ void ChooseTerrainTextureFolder(char* folder)
 				if (i == files.size())
 				{
 					t.visuals.sTerrainTextures[i] = g.fpscrootdir_s.Get();
-					strcat(t.visuals.sTerrainTextures[i].Get(), "\\Files\\");
-					strcat(t.visuals.sTerrainTextures[i].Get(), "terraintextures\\mat32\\Color.dds");
+					t.visuals.sTerrainTextures[i] += "\\Files\\";
+					t.visuals.sTerrainTextures[i] += "terraintextures\\mat32\\Color.dds";
 					sTerrainSelectionID[i] = i;
 				}
 				else

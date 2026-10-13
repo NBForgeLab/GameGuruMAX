@@ -3198,17 +3198,17 @@ void animsystem_animationsetproperty (int characterbasetype, bool readonly, enti
 		int iObjID = t.entityelement[elementID].obj;
 		if (iObjID > 0)
 		{
-			LPSTR pWeaponAnimFile = edit_grideleprof->overrideanimset_s.Get();
-			if (strlen(pWeaponAnimFile) > 1) // "" = default to weapon type, "-" = default to object anim
+			cStr weaponAnimFile = edit_grideleprof->overrideanimset_s;
+			if (weaponAnimFile.Len() > 1) // "" = default to weapon type, "-" = default to object anim
 			{
-				if (!FileExist(pWeaponAnimFile))
+				if (!FileExist(weaponAnimFile.Get()))
 				{
-					strcpy(pWeaponAnimFile, "");
+					weaponAnimFile.clear();
 				}
 			}
 			//LB: this must match what happens when the test level is run, that is, with ZERO override, use the default anim sets!!
-			//if (strlen(pWeaponAnimFile) <= 1 && strlen(edit_grideleprof->overrideanimset_s.Get()) > 1) // "" = default to weapon type, "-" = default to object anim
-			if (strlen(pWeaponAnimFile) == 0 && strlen(edit_grideleprof->overrideanimset_s.Get()) != 1) // "" = default to weapon type, "-" = default to object anim
+			//if (weaponAnimFile.Len() <= 1 && strlen(edit_grideleprof->overrideanimset_s.Get()) > 1) // "" = default to weapon type, "-" = default to object anim
+			if (weaponAnimFile.Len() == 0 && strlen(edit_grideleprof->overrideanimset_s.Get()) != 1) // "" = default to weapon type, "-" = default to object anim
 			{
 				LPSTR pCurrentWeapon = edit_grideleprof->hasweapon_s.Get();
 				LPSTR pWeaponType = "";
@@ -3228,11 +3228,14 @@ void animsystem_animationsetproperty (int characterbasetype, bool readonly, enti
 				if (pGender != NULL)
 				{
 					if (t.entityprofile[t.entid].characterbasetype >= 0 && t.entityprofile[t.entid].characterbasetype <= 1)
-						sprintf(pWeaponAnimFile, "charactercreatorplus\\animations\\sets\\%s\\default animations%s.dbo", pGender, pWeaponType);
+						weaponAnimFile = cStr("charactercreatorplus\\animations\\sets\\") + pGender + "\\default animations" + pWeaponType + ".dbo";
 					else
-						sprintf(pWeaponAnimFile, "charactercreatorplus\\animations\\sets\\%s\\default animations.dbo", pGender);
+						weaponAnimFile = cStr("charactercreatorplus\\animations\\sets\\") + pGender + "\\default animations.dbo";
 				}
 			}
+
+			edit_grideleprof->overrideanimset_s = weaponAnimFile;
+			LPSTR pWeaponAnimFile = edit_grideleprof->overrideanimset_s.Get();
 
 			// when get the final anim file we need, append it
 			if (strlen(pWeaponAnimFile) > 1) // "" = default to weapon type, "-" = default to object anim
@@ -4155,7 +4158,7 @@ void imgui_importer_loop(void)
 							char* replace = strstr(sourceFile.Get(), "_color.dds");
 							if (replace)
 							{
-								strcpy(replace, "_surface.dds");
+								sourceFile.str().replace(static_cast<size_t>(replace - sourceFile.Get()), std::string::npos, "_surface.dds");
 								strcat(newSurfaceFileTemp, sourceFile.Get());
 								bNameChosen = true;
 							}

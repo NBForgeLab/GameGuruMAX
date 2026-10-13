@@ -82,7 +82,6 @@
 #include "BulletPhysics.H"
 #include "CAnimation.h"
 #include "CCameraC.h"
-#include "CFTPC.h"
 #include "CImageC.h"
 #include "CInputC.h"
 #include "CMusicC.h"
@@ -90,13 +89,17 @@
 #include "CParticleC.h"
 #include "CSoundC.h"
 #include "cVectorC.h"
-#include "DarkAI.h"
 #include "DarkLUA.h"
 #include "GameFX.h"
 #include "LightMapper.h"
 #include "SimonReloaded.h"
 #include "SoftwareCulling.h"
-#include "PhotonCommands.h"
+
+#ifndef FPSCR
+#define FPSCR
+#endif
+#include "SteamCommands.h"
+char* AIGetEntityState ( int iObjID );
 
 #include ".\..\..\Guru-WickedMAX\wickedcalls.h"
 #include "GGVR.h"

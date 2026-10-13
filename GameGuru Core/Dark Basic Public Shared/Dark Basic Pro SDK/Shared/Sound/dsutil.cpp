@@ -18,7 +18,13 @@
 #include <dsound.h>
 #include "DSUtil.h"
 #include "DXUtil.h"
-#include "ADPCMtoWAV.h" // contains WaveDecompress
+
+// WaveDecompress stub - eliminates dependency on msacm32.lib / ADPCMtoWAV
+static LPBYTE WaveDecompress ( LPBYTE lpSrc, LPWAVEFORMATEX lpwfxSrc, DWORD dwSizeSrc, LPWAVEFORMATEX lpwfxDst, LPDWORD lpdwSizeDst )
+{
+	if ( lpdwSizeDst ) *lpdwSizeDst = 0;
+	return NULL;
+}
 
 /////////////////////////////////////////////////////////////////////////////////////
 // mike 260705 ///////////////////////////////////////////////////////////////////////
@@ -434,6 +440,12 @@ HRESULT CSoundManager::Create( CSound** ppSound,
 		memcpy ( &wOUT, pWaveFile->m_pwfx, sizeof(WAVEFORMATEX) );
 		DWORD dwOutSize = 0;
 		lpSnd = WaveDecompress ( lpCopyOfBuffer, lpwIN, dwDataSize, &wOUT, &dwOutSize );
+		if ( !lpSnd )
+		{
+			SAFE_DELETE ( lpCopyOfBuffer );
+			hr = E_FAIL;
+			goto LFail;
+		}
 		memcpy ( pWaveFile->m_pwfx, &wOUT, sizeof(WAVEFORMATEX) );
 		pWaveFile->m_pbData = lpSnd;
 		SAFE_DELETE ( lpCopyOfBuffer );

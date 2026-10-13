@@ -34,8 +34,7 @@ uint32_t ready_decals[MAXUNIQUEDECALS][MAXREADYDECALS] = { 0 };
 uint32_t decal_count[MAXUNIQUEDECALS] = { 0 };
 
 // Globals for blacklist string array
-LPSTR* g_pBlackList = NULL;
-int g_iBlackListMax = 0;
+std::vector<std::string> g_BlackList;
 bool g_bBlackListRemovedSomeEntities = false;
 
 int g_iWickedEntityId = -1;
@@ -1131,7 +1130,9 @@ bool entity_load (bool bCalledFromLibrary)
 					char* tfile_s = t.tfile_s.Get();
 					if (!bLODLoaded)
 					{
-						if (*tfile_s) LoadObject(t.tfile_s.Get(), t.entobj);
+						// The source-built runtime imports modern formats and decodes DBO
+						// through the same validated object construction path.
+						if (*tfile_s) LoadObject(tfile_s, t.entobj);
 						else MakeObjectBox(t.entobj, 1, 1, 1);
 					}
 					g_iWickedEntityId = -1;
@@ -1195,22 +1196,18 @@ bool entity_load (bool bCalledFromLibrary)
 						float y = ObjectSizeY(t.entobj);
 						float z = ObjectSizeZ(t.entobj);
 						if (ObjectExist(t.entobj)) DeleteObject(t.entobj);
+						// Register one plane under the object ID. The object runtime owns its
+						// Wicked entities and removes them through DeleteObject.
 						MakeObjectPlane(t.entobj, x, y);
 						PositionObject(t.entobj, 0, y, 0);
 						FixObjectPivot(t.entobj);
 						SetAlphaMappingOn(t.entobj, 100.0);
 						SetObjectTransparency(t.entobj, 6);
-
 						LockVertexDataForLimbCore(t.entobj, 0, 1);
-						SetVertexDataNormals(0, 0, 1, 0);
-						SetVertexDataNormals(1, 0, 1, 0);
-						SetVertexDataNormals(2, 0, 1, 0);
-						SetVertexDataNormals(3, 0, 1, 0);
-						SetVertexDataNormals(4, 0, 1, 0);
-						SetVertexDataNormals(5, 0, 1, 0);
+						for (int vertex = 0; vertex < 6; ++vertex)
+							SetVertexDataNormals(vertex, 0, 1, 0);
 						UnlockVertexData();
-
-						SetObjectUVManually(t.entobj, 0, t.entityprofile[t.entid].iDecalRows , t.entityprofile[t.entid].iDecalColumns );
+						SetObjectUVManually(t.entobj, 0, t.entityprofile[t.entid].iDecalRows, t.entityprofile[t.entid].iDecalColumns);
 
 						SetObjectLight(t.entobj, 0);
 
@@ -7554,18 +7551,18 @@ void entity_loadbank ( void )
 
 		// 050416 - blank out any entities which are blacklisted
 		g_bBlackListRemovedSomeEntities = false;
-		if ( g_pBlackList != NULL )
+		if ( !g_BlackList.empty() )
 		{
 			char pThisEntityFilename[512];
 			for ( t.entid = 1 ; t.entid <= g.entidmaster; t.entid++ )
 			{
 				strcpy ( pThisEntityFilename, t.entitybank_s[t.entid].Get() );
 				strlwr ( pThisEntityFilename );
-				for ( int iBlackListIndex=0; iBlackListIndex<g_iBlackListMax; iBlackListIndex++ )
+				for ( size_t iBlackListIndex = 0; iBlackListIndex < g_BlackList.size(); iBlackListIndex++ )
 				{
-					int iBlacklistEntityNameLength = strlen ( g_pBlackList[iBlackListIndex] );
-					int iCompareEnd = strlen ( pThisEntityFilename ) - iBlacklistEntityNameLength;
-					if ( strnicmp ( g_pBlackList[iBlackListIndex], pThisEntityFilename + iCompareEnd, iBlacklistEntityNameLength )==NULL )
+					int iBlacklistEntityNameLength = static_cast<int>(g_BlackList[iBlackListIndex].length());
+					int iCompareEnd = static_cast<int>(strlen(pThisEntityFilename)) - iBlacklistEntityNameLength;
+					if ( iCompareEnd >= 0 && strnicmp(g_BlackList[iBlackListIndex].c_str(), pThisEntityFilename + iCompareEnd, iBlacklistEntityNameLength) == 0 )
 					{
 						// this entity has been banned by parents
 						g_bBlackListRemovedSomeEntities = true;

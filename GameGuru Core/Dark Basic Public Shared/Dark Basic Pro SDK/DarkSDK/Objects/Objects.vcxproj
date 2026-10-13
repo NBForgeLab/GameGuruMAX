@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -224,6 +224,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\Shared\Core\SteamCheckForWorkshop.cpp" />
     <ClCompile Include="..\..\Shared\DBOFormat\DBO2X.cpp" />
+    <ClCompile Include="..\..\Shared\DBOFormat\DBOEffectLifecycle.cpp" />
     <ClCompile Include="..\..\Shared\DBOFormat\DBOAssImp.cpp" />
     <ClCompile Include="..\..\Shared\Objects\CObjectManagerC.cpp" />
     <ClCompile Include="..\..\Shared\Objects\CObjectsC.cpp">

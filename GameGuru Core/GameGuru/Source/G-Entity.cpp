@@ -1855,7 +1855,7 @@ void entity_loop ( void )
 						{
 							if ( t.ttemploop != g.mp.me ) 
 							{
-								 int iAlive = PhotonGetPlayerAlive(t.ttemploop);
+								 int iAlive = 0;
 								if ( t.e == t.mp_playerEntityID[t.ttemploop] && t.mp_forcePosition[t.ttemploop]>0 && iAlive == 1 ) 
 								{
 									t.tconstantlygluehead=0;

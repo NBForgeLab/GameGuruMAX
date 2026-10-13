@@ -37,12 +37,13 @@ void lua_correct_for_VR (void)
 {
 	if (g_iActivelyUsingVRNow != 0)
 	{
-		if (strnicmp(t.s_s.Get(), "press e ", 8) == NULL)
+		size_t len = t.s_s.Len();
+		if (len >= 8 && strnicmp(t.s_s.Get(), "press e ", 8) == NULL)
 		{
 			cstr pNewPromptText = cstr("Press Trigger ") + cstr(t.s_s.Get() + 8);
 			t.s_s = pNewPromptText;
 		}
-		if (strnicmp(t.s_s.Get(), "e to ", 5) == NULL)
+		if (len >= 5 && strnicmp(t.s_s.Get(), "e to ", 5) == NULL)
 		{
 			cstr pNewPromptText = cstr("Trigger to ") + cstr(t.s_s.Get() + 5);
 			t.s_s = pNewPromptText;
@@ -56,7 +57,8 @@ void lua_prompt ( void )
 	lua_correct_for_VR();
 
 	char *tmp = t.s_s.Get();
-	if (tmp[0] == 'Y' && tmp[11] == 'l') //Quickest way to compare.
+	size_t len = t.s_s.Len();
+	if (tmp && len >= 12 && tmp[0] == 'Y' && tmp[11] == 'l') //Quickest way to compare.
 	{
 		if (strlen(Storyboard.gamename) > 0 && strlen(Storyboard.game_world_edge_text) > 0)
 		{

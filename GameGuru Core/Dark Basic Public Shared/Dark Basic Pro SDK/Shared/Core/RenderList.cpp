@@ -94,9 +94,6 @@ void ExecuteRenderList()
     std::vector<RenderListItem> RenderList( g_vRenderList );
 
     // Execute each item in the list, by calling the Execute method of every item in the vector
-    std::for_each(
-        RenderList.begin(),
-        RenderList.end(),
-        std::mem_fun_ref( &RenderListItem::Execute )
-    );
+    for (RenderListItem& item : RenderList)
+        item.Execute();
 }

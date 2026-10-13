@@ -47291,15 +47291,14 @@ int screen_editor(int nodeid, bool standalone, char *screen)
 					if (Storyboard.Nodes[nodeid].widget_type[index] != STORYBOARD_WIDGET_BAR)
 					{
 						// is this a special button
-						char pDestStr[MAX_PATH];
-						strcpy(pDestStr, "");
+						std::string sQuestDest;
 						LPSTR pWidgetLabel = Storyboard.Nodes[nodeid].widget_label[index];
-						if (strnicmp(pWidgetLabel, "quest:", 6) == NULL && bImGuiInTestGame)
+						if (pWidgetLabel && strnicmp(pWidgetLabel, "quest:", 6) == NULL && bImGuiInTestGame)
 						{
-							char pUserDefinedGlobal[256];
-							sprintf(pUserDefinedGlobal, "g_UserGlobal['%s']", pWidgetLabel);
-							LuaGetString(pUserDefinedGlobal, pDestStr);
-							pWidgetLabel = pDestStr;
+							char pUserDefinedGlobal[512];
+							snprintf(pUserDefinedGlobal, sizeof(pUserDefinedGlobal), "g_UserGlobal['%s']", pWidgetLabel);
+							sQuestDest = LuaGetStringSafe(pUserDefinedGlobal);
+							pWidgetLabel = (LPSTR)sQuestDest.c_str();
 						}
 
 						// render text for button and other things
@@ -47361,12 +47360,10 @@ int screen_editor(int nodeid, bool standalone, char *screen)
 						else
 						{
 							// read from active LUA
-							char pUserDefinedGlobal[256];
-							sprintf(pUserDefinedGlobal, "g_UserGlobal['%s']", Storyboard.Nodes[nodeid].widget_label[index]);
-							char pDestStr[MAX_PATH];
-							strcpy(pDestStr, "");
-							LuaGetString(pUserDefinedGlobal, pDestStr);
-							text = pDestStr;
+							char pUserDefinedGlobal[512];
+							snprintf(pUserDefinedGlobal, sizeof(pUserDefinedGlobal), "g_UserGlobal['%s']", Storyboard.Nodes[nodeid].widget_label[index]);
+							std::string sDestStr = LuaGetStringSafe(pUserDefinedGlobal);
+							text = sDestStr.c_str();
 						}
 					}
 					else

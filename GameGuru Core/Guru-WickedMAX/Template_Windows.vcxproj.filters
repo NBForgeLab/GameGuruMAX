@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <Filter Include="ObjectRuntime"><UniqueIdentifier>{3D0BA904-E6D7-468B-A773-AD85798CA32E}</UniqueIdentifier></Filter>
     <Filter Include="Resource Files">
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
@@ -713,7 +714,7 @@
     <ClCompile Include="..\GameGuru\Source\M-Material.cpp">
       <Filter>GameGuruEngine\GameGuruSourceCode</Filter>
     </ClCompile>
-    <ClCompile Include="..\GameGuru\Source\M-MPPhoton.cpp">
+    <ClCompile Include="..\GameGuru\Source\M-MPStub.cpp">
       <Filter>GameGuruEngine\GameGuruSourceCode</Filter>
     </ClCompile>
     <ClCompile Include="..\GameGuru\Source\M-OBS.cpp">
@@ -1294,4 +1295,34 @@
       <Filter>CustomShaders</Filter>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="DBOModel.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="DBOCompatibility.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\DBOFormat\DBO2X.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\DBOFormat\DBOAssImp.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\Objects\CObjectManagerC.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\Objects\CObjectsC.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\Objects\CommonC.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\Objects\CPositionC.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\Objects\BoxCollision\3DCol.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\Objects\BoxCollision\cBoxCol.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\Objects\BoxCollision\CCollision.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\Objects\BoxCollision\PolyPool.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\DBOFormat\DBOBlock.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\DBOFormat\DBOEffects.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\DBOFormat\DBOExternals.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\DBOFormat\DBOFile.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\DBOFormat\DBOFormat.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\DBOFormat\DBOFrame.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\DBOFormat\DBOMesh.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\DBOFormat\DBORawMesh.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\DBOFormat\Extras\NVMeshMenderD3DX.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\Objects\Occlusion\cOcclusion.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\Objects\ShadowMapping\cShadowMaps.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\Objects\ShadowMapping\DepthTexture.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\Objects\GameFXCalls.cpp"><Filter>ObjectRuntime</Filter></ClCompile>
+    <ClInclude Include="DBOModel.h"><Filter>ObjectRuntime</Filter></ClInclude>
+    <ClInclude Include="DBOCompatibility.h"><Filter>ObjectRuntime</Filter></ClInclude>
+  </ItemGroup>
+  <ItemGroup><ClCompile Include="..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\DBOFormat\DBOEffectLifecycle.cpp"><Filter>ObjectRuntime</Filter></ClCompile></ItemGroup>
 </Project>

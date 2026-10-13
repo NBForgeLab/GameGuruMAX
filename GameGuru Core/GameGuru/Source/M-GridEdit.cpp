@@ -25168,8 +25168,7 @@ void gridedit_import_ask ( void )
 				if ( pReturnedFile[n] == '\\' || pReturnedFile[n] == '/' )
 				{
 					t.timporterpath_s = t.timporterfile_s;
-					LPSTR pImporterPath = t.timporterpath_s.Get();
-					pImporterPath[n] = 0;
+					t.timporterpath_s.str().resize(static_cast<size_t>(n));
 					break;
 				}
 			}
