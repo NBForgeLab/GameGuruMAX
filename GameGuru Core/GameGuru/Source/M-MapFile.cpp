@@ -48,7 +48,7 @@ public:
 
 		if ( pFileDone ) delete [] pFileDone;
 		pFileDone = new unsigned char[ numFiles ];
-		for( int i = 0; i < numFiles; i++ ) pFileDone[ i ] = 0;
+		for( uint32_t i = 0; i < numFiles; i++ ) pFileDone[ i ] = 0;
 	}
 
 	static bool AnyRunning()
@@ -86,7 +86,7 @@ public:
 	static uint32_t GetProgress()
 	{
 		// no need for lock here since it is an atomic read
-		return (iNextFile * 100) / iNumFiles;
+		return (iNumFiles > 0) ? (iNextFile * 100) / iNumFiles : 100;
 	}
 
 	uint32_t Run( ) 
@@ -101,7 +101,7 @@ public:
 			while( !lock.Acquire() );
 
 			unsigned long maxSize = 0;
-			for( int i = 0; i < iNumFiles; i++ )
+			for( uint32_t i = 0; i < iNumFiles; i++ )
 			{
 				if ( pFileDone[i] == 0 && pFileSizes[i] >= maxSize )
 				{
@@ -160,7 +160,7 @@ extern char g_Storyboard_Current_fpm[256];
 extern char g_Storyboard_Current_lua[256];
 extern char g_Storyboard_Current_Loading_Page[256];
 
-void AddWPETextures(char* filename);
+void AddWPETextures(const char* filename);
 // 
 //  MAP FILE FORMAT
 // 
@@ -177,6 +177,11 @@ cstr g_mapfile_mapbankpath;
 cstr g_mapfile_levelpathfolder;
 bool g_bAllowBackwardCompatibleConversion = false;
 bool g_bMakingAStandaloneUsingFileCollectionArray = false;
+cstr g_mapfile_told_s;
+cstr g_mapfile_tlevelfile_s;
+int g_mapfile_tlevelstoprocess = 0;
+int g_mapfile_tignorelevelbankfiles = 0;
+int g_mapfile_iEntityElementIndex = 1;
 
 bool restore_old_map = false;
 
@@ -186,35 +191,40 @@ void mapfile_saveproject_fpm ( void )
 	cstr pOldDir = GetDir();
 
 	//  use default or special worklevel stored
+	cstr tempprojfilename_s;
 	if (  t.goverridefpmdestination_s != "" ) 
 	{
-		t.ttempprojfilename_s=t.goverridefpmdestination_s;
+		tempprojfilename_s = t.goverridefpmdestination_s;
 	}
 	else
 	{
-		t.ttempprojfilename_s=g.projectfilename_s;
+		tempprojfilename_s = g.projectfilename_s;
 	}
 	//PE: Default folder could be d:\max\ , and write folder could be f:\docwrite\
 	//PE: So then moving zip, it takes from d:\... and move to f:\... , d:\\ dont exists so .fpm file is deleted.
 	//PE: To solve always use full path to .fpm
 	char destination[MAX_PATH];
-	strcpy(destination, t.ttempprojfilename_s.Get());
+	strcpy(destination, tempprojfilename_s.Get());
 	GG_GetRealPath(destination, 1);
-	t.ttempprojfilename_s = destination;
+	tempprojfilename_s = destination;
 	if (g.editorsavebak == 1) 
 	{
 		//PE: Make a backup before overwriting a fpm level.
 		char backupname[1024];
-		strcpy(backupname, t.ttempprojfilename_s.Get());
-		backupname[strlen(backupname) - 1] = 'k';
-		backupname[strlen(backupname) - 2] = 'a';
-		backupname[strlen(backupname) - 3] = 'b';
-		DeleteAFile(backupname);
-		CopyAFile(t.ttempprojfilename_s.Get(), backupname);
+		strcpy(backupname, tempprojfilename_s.Get());
+		size_t bLen = strlen(backupname);
+		if (bLen >= 3)
+		{
+			backupname[bLen - 1] = 'k';
+			backupname[bLen - 2] = 'a';
+			backupname[bLen - 3] = 'b';
+			DeleteAFile(backupname);
+			CopyAFile(tempprojfilename_s.Get(), backupname);
+		}
 	}
 
 	//  log prompts
-	timestampactivity(0, cstr(cstr("Saving FPM level file: ")+t.ttempprojfilename_s).Get() );
+	timestampactivity(0, cstr(cstr("Saving FPM level file: ") + tempprojfilename_s).Get() );
 
 	//PE: Save heightmap.
 	uint32_t iHeightmapSize = 0, iHeightmapWidth = 0, iHeightmapHeight = 0;
@@ -235,29 +245,29 @@ void mapfile_saveproject_fpm ( void )
 	t.editorvisuals=t.visuals ; t.visuals=t.gamevisuals  ; visuals_save ( );
 
 	//  Copy visuals.ini into levelfile folder
-	t.tincludevisualsfile=0;
+	int includevisualsfile = 0;
 	char pRealVisFile[MAX_PATH];
 	strcpy(pRealVisFile, g.fpscrootdir_s.Get());
 	strcat(pRealVisFile, "\\visuals.ini");
 	GG_GetRealPath(pRealVisFile, 1);
 	if (FileExist(pRealVisFile) == 1)
 	{
-		t.tvisfile_s = g.mysystem.levelBankTestMap_s + "visuals.ini";
-		if (FileExist(t.tvisfile_s.Get()) == 1)  DeleteAFile(t.tvisfile_s.Get());
-		CopyAFile(pRealVisFile, t.tvisfile_s.Get());
-		t.tincludevisualsfile = 1;
+		cstr visfile_s = g.mysystem.levelBankTestMap_s + "visuals.ini";
+		if (FileExist(visfile_s.Get()) == 1)  DeleteAFile(visfile_s.Get());
+		CopyAFile(pRealVisFile, visfile_s.Get());
+		includevisualsfile = 1;
 	}
 
 	//  And switch back for benefit to editor visuals
 	t.visuals=t.editorvisuals; // messes up when click test game again, old: gosub _visuals_save
 
 	//  Delete any old file
-	if (  FileExist(t.ttempprojfilename_s.Get()) == 1  )  DeleteAFile (  t.ttempprojfilename_s.Get() );
+	if (  FileExist(tempprojfilename_s.Get()) == 1  )  DeleteAFile (  tempprojfilename_s.Get() );
 
 	//  Copy CFG to testgame area for saving with other files
-	t.tttfile_s="cfg.cfg";
-	cstr cfgfile_s = g.mysystem.editorsGridedit_s + t.tttfile_s;
-	cstr cfginlevelbank_s = g.mysystem.levelBankTestMap_s + t.tttfile_s;
+	const char* tttfile_s = "cfg.cfg";
+	cstr cfgfile_s = g.mysystem.editorsGridedit_s + tttfile_s;
+	cstr cfginlevelbank_s = g.mysystem.levelBankTestMap_s + tttfile_s;
 	if (  FileExist( cfgfile_s.Get() ) == 1 )
 	{
 		if ( FileExist( cfginlevelbank_s.Get() ) == 1 ) DeleteAFile ( cfginlevelbank_s.Get() );
@@ -282,15 +292,15 @@ void mapfile_saveproject_fpm ( void )
 	//PE: Save a copy of locked objects.
 	if (FileExist(cfginlevelbank_s.Get()) == 1)  DeleteAFile(cfginlevelbank_s.Get());
 	OpenToWrite(1, cfginlevelbank_s.Get());
-	WriteLong(1, vEntityLockedList.size());
-	for (int i = 0; i < vEntityLockedList.size(); i++)
+	WriteLong(1, static_cast<int>(vEntityLockedList.size()));
+	for (size_t i = 0; i < vEntityLockedList.size(); i++)
 	{
 		WriteLong(1, vEntityLockedList[i].e);
 	}
 	CloseFile(1);
 
 	// Create a FPM (zipfile)
-	CreateFileBlock (  1, t.ttempprojfilename_s.Get() );
+	CreateFileBlock (  1, tempprojfilename_s.Get() );
 	SetFileBlockKey (  1, "mypassword" );
 	SetDir ( g.mysystem.levelBankTestMap_s.Get() ); // "levelbank\\testmap\\" );
 	AddFileToBlock (  1, "header.dat" );
@@ -308,33 +318,35 @@ void mapfile_saveproject_fpm ( void )
 	ChecklistForFiles (  );
 	std::vector<std::string> terrainNodeFolders;
 	terrainNodeFolders.clear();
-	for ( t.c = 1 ; t.c <= ChecklistQuantity(); t.c++ )
+	const int tnodeCount = ChecklistQuantity();
+	for ( int c = 1 ; c <= tnodeCount; ++c )
 	{
-		t.tfile_s = ChecklistString(t.c);
-		if ( t.tfile_s != "." && t.tfile_s != ".." && t.tfile_s != "ttsfiles" ) 
+		cstr tfile_s = ChecklistString(c);
+		if ( tfile_s != "." && tfile_s != ".." && tfile_s != "ttsfiles" ) 
 		{
-			if (ChecklistValueA(t.c) == 1)
+			if (ChecklistValueA(c) == 1)
 			{
-				if (cstr(Lower(Left(t.tfile_s.Get(), 2))) == "tt")
+				if (cstr(Lower(Left(tfile_s.Get(), 2))) == "tt")
 				{
 					// found terrain node folder
-					terrainNodeFolders.push_back(t.tfile_s.Get());
+					terrainNodeFolders.push_back(tfile_s.Get());
 				}
 			}
 		}
 	}
-	for (int tt = 0; tt < terrainNodeFolders.size(); tt++)
+	for (size_t tt = 0; tt < terrainNodeFolders.size(); tt++)
 	{
 		LPSTR pTerrainNodeFolder = (LPSTR)terrainNodeFolders[tt].c_str();
 		SetDir(pTerrainNodeFolder);
 		ChecklistForFiles();
 		SetDir("..");
-		for (t.c = 1; t.c <= ChecklistQuantity(); t.c++)
+		const int nodeFileCount = ChecklistQuantity();
+		for (int c = 1; c <= nodeFileCount; ++c)
 		{
-			t.tfile_s = ChecklistString(t.c);
-			if (t.tfile_s != "." && t.tfile_s != "..")
+			cstr tfile_s = ChecklistString(c);
+			if (tfile_s != "." && tfile_s != "..")
 			{
-				cstr pFullRelPathToTerrainFile = cstr(pTerrainNodeFolder) + "\\" + t.tfile_s.Get();
+				cstr pFullRelPathToTerrainFile = cstr(pTerrainNodeFolder) + "\\" + tfile_s.Get();
 				AddFileToBlock ( 1, pFullRelPathToTerrainFile.Get() );
 			}
 		}
@@ -356,124 +368,99 @@ void mapfile_saveproject_fpm ( void )
 
 	// new terrain system saves its data settings
 	cstr TerrainDataFile_s = g.mysystem.levelBankTestMap_s + "ggterrain.dat";
-	GGTerrainFile_SaveTerrainData(TerrainDataFile_s.Get(), g.gdefaultwaterheight);
+	GGTerrainFile_SaveTerrainData(TerrainDataFile_s.Get(), static_cast<int>(g.gdefaultwaterheight));
 	AddFileToBlock (1, "ggterrain.dat");
 	uint32_t terrain_sculpt_size = GGTerrain::GGTerrain_GetSculptDataSize();
-	char *data = new char[terrain_sculpt_size];
-	if (data)
+	if (terrain_sculpt_size > 0)
 	{
+		std::vector<char> sculptData(terrain_sculpt_size);
 		cstr sculpt_data_name = cstr((int)terrain_sculpt_size) + cstr(".dat");
 		TerrainDataFile_s = g.mysystem.levelBankTestMap_s + sculpt_data_name;
-		GGTerrain::GGTerrain_GetSculptData((uint8_t*)data);
+		GGTerrain::GGTerrain_GetSculptData((uint8_t*)sculptData.data());
 		if (FileExist(TerrainDataFile_s.Get()) == 1) DeleteAFile(TerrainDataFile_s.Get());
 		HANDLE hwritefile = GG_CreateFile(TerrainDataFile_s.Get(), GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		if (hwritefile != INVALID_HANDLE_VALUE)
 		{
 			DWORD byteswritten;
-			WriteFile(hwritefile, data, terrain_sculpt_size, &byteswritten, NULL);
+			WriteFile(hwritefile, sculptData.data(), terrain_sculpt_size, &byteswritten, NULL);
 			CloseHandle(hwritefile);
 			AddFileToBlock(1, sculpt_data_name.Get());
 		}
-		delete(data);
 	}
 
 	//PE: Save Paint Data.
 	uint32_t terrain_paint_size = GGTerrain::GGTerrain_GetPaintDataSize();
-	data = new char[terrain_paint_size];
-	if (data)
+	if (terrain_paint_size > 0)
 	{
+		std::vector<char> paintData(terrain_paint_size);
 		cstr paint_data_name = cstr((int)terrain_paint_size) + cstr(".ptd");
-
 		TerrainDataFile_s = g.mysystem.levelBankTestMap_s + paint_data_name;
-
-		GGTerrain::GGTerrain_GetPaintData((uint8_t*)data);
-
+		GGTerrain::GGTerrain_GetPaintData((uint8_t*)paintData.data());
 		if (FileExist(TerrainDataFile_s.Get()) == 1) DeleteAFile(TerrainDataFile_s.Get());
-
 		HANDLE hwritefile = GG_CreateFile(TerrainDataFile_s.Get(), GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		if (hwritefile != INVALID_HANDLE_VALUE)
 		{
 			DWORD byteswritten;
-			WriteFile(hwritefile, data, terrain_paint_size, &byteswritten, NULL);
+			WriteFile(hwritefile, paintData.data(), terrain_paint_size, &byteswritten, NULL);
 			CloseHandle(hwritefile);
 			AddFileToBlock(1, paint_data_name.Get());
 		}
-		delete(data);
 	}
 
 	//PE: Save Tree Data.
 	uint32_t terrain_tree_size = GGTrees::GGTrees_GetDataSize() * 4;
-	data = new char[terrain_tree_size];
-	if (data)
+	if (terrain_tree_size > 0)
 	{
+		std::vector<char> treeData(terrain_tree_size);
 		cstr tree_data_name = cstr((int)terrain_tree_size) + cstr(".tre");
-
 		TerrainDataFile_s = g.mysystem.levelBankTestMap_s + tree_data_name;
-
-		GGTrees::GGTrees_GetData((float*)data);
-
+		GGTrees::GGTrees_GetData((float*)treeData.data());
 		if (FileExist(TerrainDataFile_s.Get()) == 1) DeleteAFile(TerrainDataFile_s.Get());
-
 		HANDLE hwritefile = GG_CreateFile(TerrainDataFile_s.Get(), GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		if (hwritefile != INVALID_HANDLE_VALUE)
 		{
 			DWORD byteswritten;
-			WriteFile(hwritefile, data, terrain_tree_size, &byteswritten, NULL);
+			WriteFile(hwritefile, treeData.data(), terrain_tree_size, &byteswritten, NULL);
 			CloseHandle(hwritefile);
 			AddFileToBlock(1, tree_data_name.Get());
 		}
-		delete(data);
 	}
 
 	//PE: Save grass Data.
 	uint32_t terrain_grass_size = GGGrass::GGGrass_GetDataSize();
-	data = new char[terrain_grass_size];
-	if (data)
+	if (terrain_grass_size > 0)
 	{
+		std::vector<char> grassData(terrain_grass_size);
 		cstr grass_data_name = cstr((int)terrain_grass_size) + cstr(".gra");
-
 		TerrainDataFile_s = g.mysystem.levelBankTestMap_s + grass_data_name;
-
-		GGGrass::GGGrass_GetData((uint8_t*)data);
-
+		GGGrass::GGGrass_GetData((uint8_t*)grassData.data());
 		if (FileExist(TerrainDataFile_s.Get()) == 1) DeleteAFile(TerrainDataFile_s.Get());
-
 		HANDLE hwritefile = GG_CreateFile(TerrainDataFile_s.Get(), GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		if (hwritefile != INVALID_HANDLE_VALUE)
 		{
 			DWORD byteswritten;
-			WriteFile(hwritefile, data, terrain_grass_size, &byteswritten, NULL);
+			WriteFile(hwritefile, grassData.data(), terrain_grass_size, &byteswritten, NULL);
 			CloseHandle(hwritefile);
 			AddFileToBlock(1, grass_data_name.Get());
 		}
-		delete(data);
 	}
 
 	//PE: Save heightmap data if any.
 	if (iHeightmapSize > 0 && iHeightmapWidth > 0 && iHeightmapHeight > 0)
 	{
-		data = new char[iHeightmapSize];
-		if (data)
+		std::vector<char> heightmapData(iHeightmapSize);
+		cstr heightmap_data_name = "heightmapdata.raw";
+		TerrainDataFile_s = g.mysystem.levelBankTestMap_s + heightmap_data_name;
+		GGTerrain::GGTerrain_GetHeightmapData((uint16_t*)heightmapData.data());
+		if (FileExist(TerrainDataFile_s.Get()) == 1) DeleteAFile(TerrainDataFile_s.Get());
+		HANDLE hwritefile = GG_CreateFile(TerrainDataFile_s.Get(), GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (hwritefile != INVALID_HANDLE_VALUE)
 		{
-			cstr heightmap_data_name = "heightmapdata.raw";
-
-			TerrainDataFile_s = g.mysystem.levelBankTestMap_s + heightmap_data_name;
-
-			GGTerrain::GGTerrain_GetHeightmapData((uint16_t*)data);
-
-			if (FileExist(TerrainDataFile_s.Get()) == 1) DeleteAFile(TerrainDataFile_s.Get());
-
-			HANDLE hwritefile = GG_CreateFile(TerrainDataFile_s.Get(), GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-			if (hwritefile != INVALID_HANDLE_VALUE)
-			{
-				DWORD byteswritten;
-				WriteFile(hwritefile, data, iHeightmapSize, &byteswritten, NULL);
-				CloseHandle(hwritefile);
-				AddFileToBlock(1, heightmap_data_name.Get());
-			}
-			delete(data);
+			DWORD byteswritten;
+			WriteFile(hwritefile, heightmapData.data(), iHeightmapSize, &byteswritten, NULL);
+			CloseHandle(hwritefile);
+			AddFileToBlock(1, heightmap_data_name.Get());
 		}
-
 	}
 
 	// lightmap files
@@ -481,46 +468,45 @@ void mapfile_saveproject_fpm ( void )
 	{
 		AddFileToBlock (  1, "lightmaps\\objectlist.dat" );
 		AddFileToBlock (  1, "lightmaps\\objectnummax.dat" );
-		t.tnummaxfile_s=t.lightmapper.lmpath_s+"objectnummax.dat";
-		if (  FileExist(t.tnummaxfile_s.Get()) == 1 ) 
+		cstr nummaxfile_s = t.lightmapper.lmpath_s + "objectnummax.dat";
+		int emaxinfolder = 4999;
+		if (  FileExist(nummaxfile_s.Get()) == 1 ) 
 		{
-			OpenToRead (  1,t.tnummaxfile_s.Get() );
-			t.temaxinfolder = ReadLong ( 1 );
+			OpenToRead (  1, nummaxfile_s.Get() );
+			emaxinfolder = ReadLong ( 1 );
 			CloseFile (  1 );
 		}
-		else
+		for ( int e = 0 ; e <= (emaxinfolder * 2) + 100; ++e )
 		{
-			t.temaxinfolder=4999;
-		}
-		for ( t.e = 0 ; t.e<=  (t.temaxinfolder*2)+100; t.e++ )
-		{
-			t.tname_s=t.lightmapper.lmpath_s+Str(t.e)+".dds";
-			if (  FileExist(t.tname_s.Get()) == 1 ) 
+			cstr tname_s = t.lightmapper.lmpath_s + Str(e) + ".dds";
+			if (  FileExist(tname_s.Get()) == 1 ) 
 			{
-				AddFileToBlock (  1, cstr(cstr("lightmaps\\")+Str(t.e)+".dds").Get() );
+				AddFileToBlock (  1, cstr(cstr("lightmaps\\") + Str(e) + ".dds").Get() );
 			}
 		}
-		t.tfurthestobjnumber=g.lightmappedobjectoffset;
+		int furthestobjnumber = g.lightmappedobjectoffset;
 		SetDir (  "lightmaps" );
 		ChecklistForFiles (  );
-		for ( t.c = 1 ; t.c<=  ChecklistQuantity(); t.c++ )
+		const int lmFileCount = ChecklistQuantity();
+		for ( int c = 1 ; c <= lmFileCount; ++c )
 		{
-			t.tfile_s=ChecklistString(t.c);
-			if (  t.tfile_s != "." && t.tfile_s != ".." ) 
+			cstr tfile_s = ChecklistString(c);
+			if (  tfile_s != "." && tfile_s != ".." ) 
 			{
-				if (  cstr(Lower(Right(t.tfile_s.Get(),4))) == ".dbo" ) 
+				if (  cstr(Lower(Right(tfile_s.Get(),4))) == ".dbo" ) 
 				{
-					t.tfile_s=Right(t.tfile_s.Get(),Len(t.tfile_s.Get())-Len("object"));
-					t.tfile_s=Left(t.tfile_s.Get(),Len(t.tfile_s.Get())-4);
-					t.tfilevalue = ValF(t.tfile_s.Get()) ; if (  t.tfilevalue>t.tfurthestobjnumber  )  t.tfurthestobjnumber = t.tfilevalue;
+					tfile_s = Right(tfile_s.Get(), Len(tfile_s.Get()) - Len("object"));
+					tfile_s = Left(tfile_s.Get(), Len(tfile_s.Get()) - 4);
+					int filevalue = static_cast<int>(ValF(tfile_s.Get()));
+					if ( filevalue > furthestobjnumber ) furthestobjnumber = filevalue;
 				}
 			}
 		}
 		SetDir (  ".." );
-		for ( t.tobj = g.lightmappedobjectoffset; t.tobj <= t.tfurthestobjnumber; t.tobj++ )
+		for ( int tobj = g.lightmappedobjectoffset; tobj <= furthestobjnumber; ++tobj )
 		{
-			t.tname_s = ""; t.tname_s = t.tname_s + "lightmaps\\object"+Str(t.tobj)+".dbo";
-			if (  FileExist(t.tname_s.Get()) == 1  )  AddFileToBlock (  1, cstr(cstr("lightmaps\\object")+Str(t.tobj)+".dbo").Get() );
+			cstr tname_s = cstr("lightmaps\\object") + Str(tobj) + ".dbo";
+			if (  FileExist(tname_s.Get()) == 1  )  AddFileToBlock (  1, tname_s.Get() );
 		}
 	}
 
@@ -531,42 +517,44 @@ void mapfile_saveproject_fpm ( void )
 		ChecklistForFiles (  );
 		std::vector<cstr> ttsfileslist;
 		ttsfileslist.clear();
-		for ( t.c = 1 ; t.c <= ChecklistQuantity(); t.c++ )
+		const int ttsQty = ChecklistQuantity();
+		for ( int c = 1 ; c <= ttsQty; ++c )
 		{
-			t.tfile_s = ChecklistString(t.c);
-			if ( t.tfile_s != "." && t.tfile_s != ".." ) 
+			cstr tfile_s = ChecklistString(c);
+			if ( tfile_s != "." && tfile_s != ".." ) 
 			{
-				if ( cstr(Lower(Right(t.tfile_s.Get(),4))) == ".txt" || cstr(Lower(Right(t.tfile_s.Get(),4))) == ".wav" || cstr(Lower(Right(t.tfile_s.Get(),4))) == ".lip") 
+				if ( cstr(Lower(Right(tfile_s.Get(),4))) == ".txt" || cstr(Lower(Right(tfile_s.Get(),4))) == ".wav" || cstr(Lower(Right(tfile_s.Get(),4))) == ".lip") 
 				{
-					ttsfileslist.push_back(t.tfile_s);
+					ttsfileslist.push_back(tfile_s);
 				}
 			}
 		}
 		SetDir ( ".." );
-		for ( t.c = 0; t.c < ttsfileslist.size(); t.c++ )
+		for ( size_t c = 0; c < ttsfileslist.size(); ++c )
 		{
-			AddFileToBlock ( 1, cstr(cstr("ttsfiles\\")+ttsfileslist[t.c]).Get() );
+			AddFileToBlock ( 1, cstr(cstr("ttsfiles\\") + ttsfileslist[c]).Get() );
 		}
 	}
 
 	//  visual settings
-	if (  t.tincludevisualsfile == 1  )  AddFileToBlock (  1, "visuals.ini" );
+	if (  includevisualsfile == 1  )  AddFileToBlock (  1, "visuals.ini" );
 
 	//  conkit data
 	if (  FileExist("conkit.dat")  )  AddFileToBlock (  1,"conkit.dat" );
 
 	//  ebe files
 	ChecklistForFiles (  );
-	for ( t.c = 1 ; t.c <= ChecklistQuantity(); t.c++ )
+	const int ebeQty = ChecklistQuantity();
+	for ( int c = 1 ; c <= ebeQty; ++c )
 	{
-		t.tfile_s = ChecklistString(t.c);
-		if ( t.tfile_s != "." && t.tfile_s != ".." ) 
+		cstr tfile_s = ChecklistString(c);
+		if ( tfile_s != "." && tfile_s != ".." ) 
 		{
-			cstr strEnt = cstr(Lower(Right(t.tfile_s.Get(),4)));
+			cstr strEnt = cstr(Lower(Right(tfile_s.Get(),4)));
 			if ( strcmp ( strEnt.Get(), ".ebe" ) == NULL )
 			{
-				AddFileToBlock ( 1, t.tfile_s.Get() );
-				cstr tNameOnly = Left(t.tfile_s.Get(),strlen(t.tfile_s.Get())-4);
+				AddFileToBlock ( 1, tfile_s.Get() );
+				cstr tNameOnly = Left(tfile_s.Get(), static_cast<int>(strlen(tfile_s.Get())) - 4);
 				cstr tThisFile = tNameOnly + cstr(".fpe");
 				if ( FileExist(tThisFile.Get()) ) AddFileToBlock ( 1, tThisFile.Get() );
 				// wicked saves DBOs
@@ -606,12 +594,12 @@ void mapfile_saveproject_fpm ( void )
 	// New automated backup system for FPM files (stored in destination var)
 	#define AUTOSAVEBACKUP
 	#ifdef AUTOSAVEBACKUP
-	timestampactivity(0, "Auto-save a copy of every save to the mapbank\_automatedbackups folder");
+	timestampactivity(0, "Auto-save a copy of every save to the mapbank\\_automatedbackups folder");
 	char automatedcopyfpm[MAX_PATH];
 	char automatedcopyname[MAX_PATH];
 	strcpy(automatedcopyfpm, "");
-	strcpy(automatedcopyname, destination);
-	for (int i = strlen(automatedcopyname)-8; i > 0; i--)
+	int autoNameLen = static_cast<int>(strlen(automatedcopyname));
+	for (int i = autoNameLen - 8; i > 0; i--)
 	{
 		if (strnicmp(automatedcopyname + i, "mapbank\\", 8)==NULL || strnicmp(automatedcopyname + i, "mapbank/", 8) == NULL)
 		{
@@ -711,13 +699,12 @@ void mapfile_saveproject_fpm ( void )
 	g.filecollectionmax = 0;
 	Undim (t.filecollection_s);
 	Dim (t.filecollection_s, 500);
-	void addthisentityprofilesfilestocollection (entityeleproftype * pEleProf);
+	void addthisentityprofilesfilestocollection (entityeleproftype * pEleProf, int entid);
 	for (int entid = 1; entid <= g.entidmaster; entid++)
 	{
 		if (strlen(t.entitybank_s[entid].Get()) > 0)
 		{
-			t.e = 0; t.entid = entid;
-			addthisentityprofilesfilestocollection (NULL);
+			addthisentityprofilesfilestocollection (NULL, entid);
 		}
 	}
 
@@ -730,8 +717,8 @@ void mapfile_saveproject_fpm ( void )
 	for (int i = 0; i <= g.filecollectionmax; i++)
 	{
 		LPSTR pThisFile = t.filecollection_s[i].Get();
-		int iThisSize = strlen (pThisFile);
-		if (iThisSize  > 0)
+		int iThisSize = static_cast<int>(strlen(pThisFile));
+		if (iThisSize > 0)
 		{
 			// must have a file specified
 			if (pThisFile[iThisSize - 1] == '\\' || pThisFile[iThisSize - 1] == '/')
@@ -747,6 +734,7 @@ void mapfile_saveproject_fpm ( void )
 			}
 		}
 	}
+	lstlist_s.resize(iListIndex);
 	SaveArray (LSTFile_s.Get(), lstlist_s);
 	UnDim (lstlist_s);
 
@@ -755,7 +743,7 @@ void mapfile_saveproject_fpm ( void )
 	save_rpg_system(pref.cLastUsedStoryboardProject, true);
 
 	//  does crazy cool stuff
-	t.tsteamsavefilename_s = t.ttempprojfilename_s;
+	t.tsteamsavefilename_s = tempprojfilename_s;
 
 	//  log prompts
 	timestampactivity(0,"Saving FPM level file complete");
@@ -764,52 +752,43 @@ void mapfile_saveproject_fpm ( void )
 void mapfile_emptyebesfromtestmapfolder(bool bIgnoreValidTextureFiles)
 {
 	ChecklistForFiles();
-	for (t.c = 1; t.c <= ChecklistQuantity(); t.c++)
+	const int count = ChecklistQuantity();
+	for (int c = 1; c <= count; ++c)
 	{
-		t.tfile_s = ChecklistString(t.c);
-		if (t.tfile_s != "." && t.tfile_s != "..")
+		const char* pFile = ChecklistString(c);
+		if (!pFile || strcmp(pFile, ".") == 0 || strcmp(pFile, "..") == 0) continue;
+
+		// only if not a CUSTOM content piece
+		if (_strnicmp(pFile, "CUSTOM_", 7) != 0)
 		{
-			// only if not a CUSTOM content piece
-			if (strnicmp(t.tfile_s.Get(), "CUSTOM_", 7) != NULL)
+			size_t fileLen = strlen(pFile);
+			if (fileLen >= 4)
 			{
-				cstr strEnt = cstr(Lower(Right(t.tfile_s.Get(), 4)));
-				if (stricmp(strEnt.Get(), ".ebe") == NULL || stricmp(strEnt.Get(), ".fpe") == NULL)
+				const char* pExt4 = pFile + fileLen - 4;
+				if (_stricmp(pExt4, ".ebe") == 0 || _stricmp(pExt4, ".fpe") == 0)
 				{
-					DeleteAFile(t.tfile_s.Get());
-					cstr tNameOnly = Left(t.tfile_s.Get(), strlen(t.tfile_s.Get()) - 4);
-					cstr tThisFile = tNameOnly + cstr(".fpe");
-					if (FileExist(tThisFile.Get()) == 1) DeleteAFile(tThisFile.Get());
-					tThisFile = tNameOnly + cstr(".dbo");
-					if (FileExist(tThisFile.Get()) == 1) DeleteAFile(tThisFile.Get());
-
-					tThisFile = tNameOnly + cstr(".x");
-					if (FileExist(tThisFile.Get()) == 1) DeleteAFile(tThisFile.Get());
-
-					tThisFile = tNameOnly + cstr(".bmp");
-					if (FileExist(tThisFile.Get()) == 1) DeleteAFile(tThisFile.Get());
-					tThisFile = tNameOnly + cstr("_D.dds");
-					if (FileExist(tThisFile.Get()) == 1) DeleteAFile(tThisFile.Get());
-					tThisFile = tNameOnly + cstr("_N.dds");
-					if (FileExist(tThisFile.Get()) == 1) DeleteAFile(tThisFile.Get());
-					tThisFile = tNameOnly + cstr("_S.dds");
-					if (FileExist(tThisFile.Get()) == 1) DeleteAFile(tThisFile.Get());
-
-					tThisFile = tNameOnly + cstr("_D.jpg");
-					if (FileExist(tThisFile.Get()) == 1) DeleteAFile(tThisFile.Get());
-					tThisFile = tNameOnly + cstr("_N.jpg");
-					if (FileExist(tThisFile.Get()) == 1) DeleteAFile(tThisFile.Get());
-					tThisFile = tNameOnly + cstr("_S.jpg");
-					if (FileExist(tThisFile.Get()) == 1) DeleteAFile(tThisFile.Get());
-
-				}
-				strEnt = cstr(Lower(Right(t.tfile_s.Get(), 6)));
-				if (bIgnoreValidTextureFiles == false)
-				{
-					if (strcmp(strEnt.Get(), "_d.dds") == NULL || strcmp(strEnt.Get(), "_n.dds") == NULL || strcmp(strEnt.Get(), "_s.dds") == NULL
-						|| strcmp(strEnt.Get(), "_d.jpg") == NULL || strcmp(strEnt.Get(), "_n.jpg") == NULL || strcmp(strEnt.Get(), "_s.jpg") == NULL)
+					DeleteAFile(const_cast<char*>(pFile));
+					std::string tNameOnly(pFile, fileLen - 4);
+					const char* exts[] = {
+						".fpe", ".dbo", ".x", ".bmp",
+						"_D.dds", "_N.dds", "_S.dds",
+						"_D.jpg", "_N.jpg", "_S.jpg"
+					};
+					for (const char* ext : exts)
 					{
-						DeleteAFile(t.tfile_s.Get());
+						std::string target = tNameOnly + ext;
+						if (FileExist(const_cast<char*>(target.c_str())) == 1)
+							DeleteAFile(const_cast<char*>(target.c_str()));
 					}
+				}
+			}
+			if (!bIgnoreValidTextureFiles && fileLen >= 6)
+			{
+				const char* pExt6 = pFile + fileLen - 6;
+				if (_stricmp(pExt6, "_d.dds") == 0 || _stricmp(pExt6, "_n.dds") == 0 || _stricmp(pExt6, "_s.dds") == 0 ||
+					_stricmp(pExt6, "_d.jpg") == 0 || _stricmp(pExt6, "_n.jpg") == 0 || _stricmp(pExt6, "_s.jpg") == 0)
+				{
+					DeleteAFile(const_cast<char*>(pFile));
 				}
 			}
 		}
@@ -830,32 +809,34 @@ void mapfile_emptyterrainfilesfromtestmapfolder ( void )
 	ChecklistForFiles (  );
 	std::vector<std::string> terrainNodeFolders;
 	terrainNodeFolders.clear();
-	for ( t.c = 1 ; t.c <= ChecklistQuantity(); t.c++ )
+	const int count = ChecklistQuantity();
+	for ( int c = 1 ; c <= count; ++c )
 	{
-		t.tfile_s = ChecklistString(t.c);
-		if ( t.tfile_s != "." && t.tfile_s != ".." && t.tfile_s != "ttsfiles" ) 
+		cstr tfile_s = ChecklistString(c);
+		if ( tfile_s != "." && tfile_s != ".." && tfile_s != "ttsfiles" ) 
 		{
-			if (ChecklistValueA(t.c) == 1)
+			if (ChecklistValueA(c) == 1)
 			{
-				if (cstr(Lower(Left(t.tfile_s.Get(), 2))) == "tt")
+				if (cstr(Lower(Left(tfile_s.Get(), 2))) == "tt")
 				{
 					// found terrain node folder
-					terrainNodeFolders.push_back(t.tfile_s.Get());
+					terrainNodeFolders.push_back(tfile_s.Get());
 				}
 			}
 		}
 	}
-	for (int tt = 0; tt < terrainNodeFolders.size(); tt++)
+	for (size_t tt = 0; tt < terrainNodeFolders.size(); tt++)
 	{
 		LPSTR pTerrainNodeFolder = (LPSTR)terrainNodeFolders[tt].c_str();
 		SetDir(pTerrainNodeFolder);
 		ChecklistForFiles();
-		for (t.c = 1; t.c <= ChecklistQuantity(); t.c++)
+		const int nodeFileCount = ChecklistQuantity();
+		for (int c = 1; c <= nodeFileCount; ++c)
 		{
-			t.tfile_s = ChecklistString(t.c);
-			if (t.tfile_s != "." && t.tfile_s != "..")
+			cstr tfile_s = ChecklistString(c);
+			if (tfile_s != "." && tfile_s != "..")
 			{
-				DeleteAFile ( t.tfile_s.Get() );
+				DeleteAFile ( tfile_s.Get() );
 			}
 		}
 		SetDir("..");
@@ -879,12 +860,13 @@ void mapfile_emptylightmapandttsfilesfolder_wicked( void )
 	{
 		SetDir(pRealWritableArea);
 		ChecklistForFiles();
-		for (t.c = 1; t.c <= ChecklistQuantity(); t.c++)
+		const int lmCount = ChecklistQuantity();
+		for (int c = 1; c <= lmCount; ++c)
 		{
-			t.tfile_s = ChecklistString(t.c);
-			if (t.tfile_s != "." && t.tfile_s != "..")
+			cstr tfile_s = ChecklistString(c);
+			if (tfile_s != "." && tfile_s != "..")
 			{
-				if (FileExist(t.tfile_s.Get()) == 1)  DeleteAFile(t.tfile_s.Get());
+				if (FileExist(tfile_s.Get()) == 1)  DeleteAFile(tfile_s.Get());
 			}
 		}
 		SetDir(pOldDir.Get());
@@ -901,12 +883,13 @@ void mapfile_emptylightmapandttsfilesfolder_wicked( void )
 	{
 		SetDir(pRealWritableArea);
 		ChecklistForFiles();
-		for (t.c = 1; t.c <= ChecklistQuantity(); t.c++)
+		const int ttsCount = ChecklistQuantity();
+		for (int c = 1; c <= ttsCount; ++c)
 		{
-			t.tfile_s = ChecklistString(t.c);
-			if (t.tfile_s != "." && t.tfile_s != "..")
+			cstr tfile_s = ChecklistString(c);
+			if (tfile_s != "." && tfile_s != "..")
 			{
-				if (FileExist(t.tfile_s.Get()) == 1)  DeleteAFile(t.tfile_s.Get());
+				if (FileExist(tfile_s.Get()) == 1)  DeleteAFile(tfile_s.Get());
 			}
 		}
 		SetDir(pOldDir.Get());
@@ -938,7 +921,7 @@ void mapfile_loadproject_fpm ( void )
 		mapfile_emptyterrainfilesfromtestmapfolder();
 
 		//  Store and switch folders
-		t.tdirst_s=GetDir() ; SetDir ( g.mysystem.levelBankTestMap_s.Get() ); // "levelbank\\testmap\\" );
+		cstr oldDir_s = GetDir(); SetDir ( g.mysystem.levelBankTestMap_s.Get() ); // "levelbank\\testmap\\" );
 
 		// Delete key testmap file (if any)
 		if ( FileExist("header.dat") == 1 ) DeleteAFile ( "header.dat" );
@@ -988,11 +971,11 @@ void mapfile_loadproject_fpm ( void )
 		mapfile_emptyebesfromtestmapfolder(false);
 
 		//  Restore folder to Files (for extraction)
-		SetDir ( t.tdirst_s.Get() );
+		SetDir ( oldDir_s.Get() );
 
 		//  Read FPM into testmap area
 		timestampactivity(0,"LOADMAP: read FPM block");
-		t.tpath_s=g.mysystem.levelBankTestMap_s.Get(); //"levelbank\\testmap\\";
+		cstr tpath_s = g.mysystem.levelBankTestMap_s.Get(); //"levelbank\\testmap\\";
 
 		if ( !ExtractZipThread::IsSetup() )
 		{
@@ -1007,7 +990,7 @@ void mapfile_loadproject_fpm ( void )
 		uint32_t numFiles = GetFileBlockNumFiles( 1 );
 		const char* const* pAllFiles = GetFileBlockAllFileNames( 1 );
 		const unsigned long* pAllSizes = GetFileBlockAllFileSizes( 1 );
-		ExtractZipThread::SetWork( g.projectfilename_s.Get(), t.tpath_s.Get(), pAllFiles, pAllSizes, numFiles );
+		ExtractZipThread::SetWork( g.projectfilename_s.Get(), tpath_s.Get(), pAllFiles, pAllSizes, numFiles );
 		ExtractZipThread::StartThreads();
 		ExtractZipThread::WaitForAll();
 		CloseFileBlock( 1 ); // must remain open until all work completed for pAllFiles to remain valid
@@ -1065,7 +1048,7 @@ void mapfile_loadproject_fpm ( void )
 						}
 					}
 				}
-				delete(data);
+				delete[] data;
 			}
 
 			void check_new_terrain_parameters(void);
@@ -1104,7 +1087,7 @@ void mapfile_loadproject_fpm ( void )
 						}
 					}
 				}
-				delete(data);
+				delete[] data;
 			}
 
 			//PE: Default hide all tree's.
@@ -1166,7 +1149,7 @@ void mapfile_loadproject_fpm ( void )
 									uint32_t visible = (data & 0x100);
 									uint32_t id = (data >> 10);
 									uint32_t scaleindex = (data >> 4) & 0x7; //hlsl: uint index = (IN.data >> 4) & 0x7;
-									float randScale = (scaleindex / 7.0) * 0.25 + 0.75; //hlsl. old scale.
+									float randScale = static_cast<float>((scaleindex / 7.0) * 0.25 + 0.75); //hlsl. old scale.
 									int newscale = (int)((float)(57 + (scaleindex * 4.0)) * randScale);
 									type &= 0x1F;
 									uint32_t varIndex = id & 0x7;
@@ -1190,7 +1173,7 @@ void mapfile_loadproject_fpm ( void )
 						data -= 4;
 					}
 				}
-				delete(data);
+				delete[] data;
 			}
 
 
@@ -1218,7 +1201,7 @@ void mapfile_loadproject_fpm ( void )
 						}
 					}
 				}
-				delete(data);
+				delete[] data;
 			}
 			//PE: Make sure to trigger a delayed update, so everything is placed correctly, grass/trees need height.
 			extern int iTriggerInvalidateAfterFrames;
@@ -1230,10 +1213,10 @@ void mapfile_loadproject_fpm ( void )
 		timestampactivity(0,"LOADMAP: load in visuals");
 		if (  FileExist("visuals.ini") == 1 ) 
 		{
-			t.tstorefpscrootdir_s=g.fpscrootdir_s;
-			g.fpscrootdir_s="" ; visuals_load ( );
-			g.fpscrootdir_s=t.tstorefpscrootdir_s;
-			t.trerfeshvisualsassets=1;
+			cstr storefpscrootdir_s = g.fpscrootdir_s;
+			g.fpscrootdir_s = "" ; visuals_load ( );
+			g.fpscrootdir_s = storefpscrootdir_s;
+			t.trerfeshvisualsassets = 1;
 
 			//  Ensure visuals settings are copied to gamevisuals (the true destination)
 			t.gamevisuals=t.visuals;
@@ -1309,25 +1292,25 @@ void mapfile_loadproject_fpm ( void )
 
 
 		//  if MAP OBS exists, we are not generating OBS data this time
-		t.aisystem.generateobs=1;
-		t.tobsfile_s="map.obs";
-		if (  FileExist(t.tobsfile_s.Get()) == 1 ) 
+		t.aisystem.generateobs = 1;
+		cstr obsfile_s = "map.obs";
+		if ( FileExist(obsfile_s.Get()) == 1 ) 
 		{
-			t.aisystem.generateobs=0;
+			t.aisystem.generateobs = 0;
 		}
 
 		//  if CFG file present, copy to editor folder for later use (stores FPG for us)
-		if (  t.game.runasmultiplayer == 0 ) 
+		if ( t.game.runasmultiplayer == 0 ) 
 		{
 			//  single player/editor only - not needed when loading multiplayer map
-			if (  t.tloadsuccessfully == 1 ) 
+			if ( t.tloadsuccessfully == 1 ) 
 			{
-				t.tttfile_s="cfg.cfg";
-				if (  FileExist(t.tttfile_s.Get()) == 1 ) 
+				char tttfile_s[] = "cfg.cfg";
+				if ( FileExist(tttfile_s) == 1 ) 
 				{
-					cstr cfgfile_s = g.mysystem.editorsGrideditAbs_s + t.tttfile_s;
-					if ( FileExist( cfgfile_s.Get() ) == 1  )  DeleteAFile ( cfgfile_s.Get() );
-					CopyAFile ( t.tttfile_s.Get(), cfgfile_s.Get() );
+					cstr cfgfile_s = g.mysystem.editorsGrideditAbs_s + tttfile_s;
+					if ( FileExist( cfgfile_s.Get() ) == 1 ) DeleteAFile ( cfgfile_s.Get() );
+					CopyAFile ( tttfile_s, cfgfile_s.Get() );
 				}
 
 				//PE: Load locked objects.
@@ -1357,7 +1340,7 @@ void mapfile_loadproject_fpm ( void )
 		}
 
 		// Retore and switch folders
-		SetDir ( t.tdirst_s.Get() );
+		SetDir ( oldDir_s.Get() );
 
 		//  if visuals file present, apply it
 		timestampactivity(0,"LOADMAP: apply visuals");
@@ -1428,23 +1411,22 @@ void mapfile_newmap ( void )
 void mapfile_loadmap ( void )
 {
 	// Load header data (need main mapdata for visdata)
-	t.filename_s=t.levelmapptah_s+"header.dat";
-	if (  FileExist(t.filename_s.Get()) == 1 ) 
+	cstr filename_s = t.levelmapptah_s + "header.dat";
+	int versionmajor = 0;
+	int versionminor = 0;
+	if ( FileExist(filename_s.Get()) == 1 ) 
 	{
 		// Header - version number
-		OpenToRead (  1,t.filename_s.Get() );
-		t.versionmajor = ReadLong ( 1 );
-		t.versionminor = ReadLong ( 1 );
-		CloseFile (  1 );
+		OpenToRead ( 1, filename_s.Get() );
+		versionmajor = ReadLong ( 1 );
+		versionminor = ReadLong ( 1 );
+		CloseFile ( 1 );
 	}
 
 	// 080917 - if old header, delete map.obj as it contains corrupt waypoint data
-	if ( t.versionmajor < 1 )
+	if ( versionmajor < 1 )
 	{
-		//LPSTR pOldDir = GetDir();
-		//LPSTR pObstacleWaypointData = "levelbank\\testmap\\map.obs";
-		//if ( FileExist ( pObstacleWaypointData ) == 1 ) DeleteFile ( pObstacleWaypointData );
-		cstr obstacleWaypointData_s = g.mysystem.levelBankTestMap_s+"map.obs";
+		cstr obstacleWaypointData_s = g.mysystem.levelBankTestMap_s + "map.obs";
 		if ( FileExist ( obstacleWaypointData_s.Get() ) == 1 ) DeleteFileA ( obstacleWaypointData_s.Get() );
 	}
 }
@@ -1452,83 +1434,83 @@ void mapfile_loadmap ( void )
 void mapfile_savemap ( void )
 {
 	// Store old folder
-	t.old_s=GetDir();
+	cstr oldDir_s = GetDir();
 
 	// Enter folder
 	SetDir ( g.mysystem.levelBankTestMap_s.Get() ); //"levelbank\\testmap\\" );
 
 	// Clear old files out (TEMP)
-	if (  FileExist("header.dat") == 1  )  DeleteAFile (  "header.dat" );
+	if ( FileExist("header.dat") == 1 ) DeleteAFile ( "header.dat" );
 
 	// Create header file
-	OpenToWrite (  1,"header.dat" );
+	OpenToWrite ( 1, "header.dat" );
 
 	// Version 0.0 = Reloaded
 	// Version 1.0 = GameGuru DX11 (new obstacle data save fixes)
-	t.versionmajor = 1; WriteLong ( 1, t.versionmajor );
-	t.versionminor = 0; WriteLong ( 1, t.versionminor );
+	const int versionmajor = 1; WriteLong ( 1, versionmajor );
+	const int versionminor = 0; WriteLong ( 1, versionminor );
 
 	// end of header
-	CloseFile (  1 );
+	CloseFile ( 1 );
 
 	// Restore
-	SetDir (  t.old_s.Get() );
+	SetDir ( oldDir_s.Get() );
 }
 
 void mapfile_loadplayerconfig ( void )
 {
-	//  Load player settings
-	t.filename_s=t.levelmapptah_s+"playerconfig.dat";
-	if (  FileExist(t.filename_s.Get()) == 1 ) 
+	// Load player settings
+	cstr filename_s = t.levelmapptah_s + "playerconfig.dat";
+	if ( FileExist(filename_s.Get()) == 1 ) 
 	{
-		//  Reloaded Header
-		OpenToRead (  1,t.filename_s.Get() );
+		// Reloaded Header
+		OpenToRead ( 1, filename_s.Get() );
 
-		//  verion header
-		t.tmp_s = ReadString ( 1 );
-		t.tversion = ReadLong ( 1 );
+		// version header
+		cstr tmp_s = ReadString ( 1 );
+		int tversion = ReadLong ( 1 );
 
-		//  player settings
-		if (  t.tversion >= 201006 ) 
+		// player settings
+		if ( tversion >= 201006 ) 
 		{
-			t.a_f = ReadFloat ( 1 ); t.playercontrol.jumpmax_f=t.a_f;
-			t.a_f = ReadFloat ( 1 ); t.playercontrol.gravity_f=t.a_f;
-			t.a_f = ReadFloat ( 1 ); t.playercontrol.fallspeed_f=t.a_f;
-			t.a_f = ReadFloat ( 1 ); t.playercontrol.climbangle_f=t.a_f;
-			t.a_f = ReadFloat ( 1 ); t.playercontrol.footfallpace_f=t.a_f;
-			t.a_f = ReadFloat ( 1 ); t.playercontrol.wobblespeed_f=t.a_f;
-			t.a_f = ReadFloat ( 1 ); t.playercontrol.wobbleheight_f=t.a_f;
-			t.a_f = ReadFloat ( 1 ); t.playercontrol.accel_f=t.a_f;
+			t.playercontrol.jumpmax_f = ReadFloat ( 1 );
+			t.playercontrol.gravity_f = ReadFloat ( 1 );
+			t.playercontrol.fallspeed_f = ReadFloat ( 1 );
+			t.playercontrol.climbangle_f = ReadFloat ( 1 );
+			t.playercontrol.footfallpace_f = ReadFloat ( 1 );
+			t.playercontrol.wobblespeed_f = ReadFloat ( 1 );
+			t.playercontrol.wobbleheight_f = ReadFloat ( 1 );
+			t.playercontrol.accel_f = ReadFloat ( 1 );
 		}
 
-		//  extra player settings
-		if (  t.tversion >= 20100651 ) 
+		// extra player settings
+		if ( tversion >= 20100651 ) 
 		{
-			t.a_f = ReadFloat ( 1 ); t.playercontrol.regenrate=t.a_f;
-			t.a_f = ReadFloat ( 1 ); t.playercontrol.regenspeed=t.a_f;
-			t.a_f = ReadFloat ( 1 ); t.playercontrol.regendelay=t.a_f;
+			t.playercontrol.regenrate = static_cast<int>(ReadFloat ( 1 ));
+			t.playercontrol.regenspeed = static_cast<int>(ReadFloat ( 1 ));
+			t.playercontrol.regendelay = static_cast<int>(ReadFloat ( 1 ));
 		}
 
-		//  extra player settings for third person (V1.01.002)
-		if (  t.tversion >= 20100652 ) 
+		// extra player settings for third person (V1.01.002)
+		if ( tversion >= 20100652 ) 
 		{
-			t.a = ReadLong ( 1 ); t.playercontrol.thirdperson.enabled=t.a;
-			t.a = ReadLong ( 1 ); t.playercontrol.thirdperson.startmarkere=t.a;
-			t.a = ReadLong ( 1 ); t.playercontrol.thirdperson.charactere=t.a;
-			t.a_f = ReadFloat ( 1 ); t.playercontrol.thirdperson.cameradistance=t.a_f;
-			t.a_f = ReadFloat ( 1 ); t.playercontrol.thirdperson.cameraheight=t.a_f;
-			t.a_f = ReadFloat ( 1 ); t.playercontrol.thirdperson.cameraspeed=t.a_f;
+			t.playercontrol.thirdperson.enabled = ReadLong ( 1 );
+			t.playercontrol.thirdperson.startmarkere = ReadLong ( 1 );
+			t.playercontrol.thirdperson.charactere = ReadLong ( 1 );
+			t.playercontrol.thirdperson.cameradistance = ReadFloat ( 1 );
+			t.playercontrol.thirdperson.cameraheight = ReadFloat ( 1 );
+			t.playercontrol.thirdperson.cameraspeed = ReadFloat ( 1 );
 		}
-		if (  t.tversion >= 20100653 ) 
+		if ( tversion >= 20100653 ) 
 		{
-			t.a_f = ReadFloat ( 1 ); t.playercontrol.thirdperson.camerafocus=t.a_f;
-			t.a = ReadLong ( 1 ); t.playercontrol.thirdperson.cameralocked=t.a;
-			t.a = ReadLong ( 1 ); t.playercontrol.thirdperson.camerashoulder=t.a;
-			t.a = ReadLong ( 1 ); t.playercontrol.thirdperson.camerafollow=t.a;
-			t.a = ReadLong ( 1 ); t.playercontrol.thirdperson.camerareticle=t.a;
+			t.playercontrol.thirdperson.camerafocus = ReadFloat ( 1 );
+			t.playercontrol.thirdperson.cameralocked = ReadLong ( 1 );
+			t.playercontrol.thirdperson.camerashoulder = ReadLong ( 1 );
+			t.playercontrol.thirdperson.camerafollow = ReadLong ( 1 );
+			t.playercontrol.thirdperson.camerareticle = ReadLong ( 1 );
 		}
 
-		CloseFile (  1 );
+		CloseFile ( 1 );
 	}
 
 	// No third person mode in MAX
@@ -1537,66 +1519,65 @@ void mapfile_loadplayerconfig ( void )
 
 void mapfile_saveplayerconfig ( void )
 {
-	//  Store old folder
-	t.old_s=GetDir();
+	// Store old folder
+	cstr oldDir_s = GetDir();
 
-	//  Enter folder
+	// Enter folder
 	SetDir ( g.mysystem.levelBankTestMap_s.Get() ); // "levelbank\\testmap\\" );
 
-	//  Version for player config has minor value (between betas)
-	t.gtweakversion=20100653;
+	// Version for player config has minor value (between betas)
+	const int gtweakversion = 20100653;
 
-	//  WriteLong (  out )
-	if (  FileExist("playerconfig.dat") == 1  )  DeleteAFile (  "playerconfig.dat" );
-	OpenToWrite (  1,"playerconfig.dat" );
+	// WriteLong ( out )
+	if ( FileExist("playerconfig.dat") == 1 ) DeleteAFile ( "playerconfig.dat" );
+	OpenToWrite ( 1, "playerconfig.dat" );
 
-	//  verion header
-	WriteString (  1,"version" );
-	WriteLong (  1,t.gtweakversion );
+	// version header
+	WriteString ( 1, "version" );
+	WriteLong ( 1, gtweakversion );
 
-	//  player settings
-	WriteFloat (  1,t.playercontrol.jumpmax_f );
-	WriteFloat (  1,t.playercontrol.gravity_f );
-	WriteFloat (  1,t.playercontrol.fallspeed_f );
-	WriteFloat (  1,t.playercontrol.climbangle_f );
-	WriteFloat (  1,t.playercontrol.footfallpace_f );
-	WriteFloat (  1,t.playercontrol.wobblespeed_f );
-	WriteFloat (  1,t.playercontrol.wobbleheight_f );
-	WriteFloat (  1,t.playercontrol.accel_f );
+	// player settings
+	WriteFloat ( 1, t.playercontrol.jumpmax_f );
+	WriteFloat ( 1, t.playercontrol.gravity_f );
+	WriteFloat ( 1, t.playercontrol.fallspeed_f );
+	WriteFloat ( 1, t.playercontrol.climbangle_f );
+	WriteFloat ( 1, t.playercontrol.footfallpace_f );
+	WriteFloat ( 1, t.playercontrol.wobblespeed_f );
+	WriteFloat ( 1, t.playercontrol.wobbleheight_f );
+	WriteFloat ( 1, t.playercontrol.accel_f );
 
-	//  extra settings from V1.0065 (20100651)
-	WriteFloat (  1,t.playercontrol.regenrate );
-	WriteFloat (  1,t.playercontrol.regenspeed );
-	WriteFloat (  1,t.playercontrol.regendelay );
+	// extra settings from V1.0065 (20100651)
+	WriteFloat ( 1, static_cast<float>(t.playercontrol.regenrate) );
+	WriteFloat ( 1, static_cast<float>(t.playercontrol.regenspeed) );
+	WriteFloat ( 1, static_cast<float>(t.playercontrol.regendelay) );
 
-	//  extra settings from V1.01.030 (20100652)
-	WriteLong (  1,t.playercontrol.thirdperson.enabled );
-	WriteLong (  1,t.playercontrol.thirdperson.startmarkere );
-	WriteLong (  1,t.playercontrol.thirdperson.charactere );
-	WriteFloat (  1,t.playercontrol.thirdperson.cameradistance );
-	WriteFloat (  1,t.playercontrol.thirdperson.cameraheight );
-	WriteFloat (  1,t.playercontrol.thirdperson.cameraspeed );
+	// extra settings from V1.01.030 (20100652)
+	WriteLong ( 1, t.playercontrol.thirdperson.enabled );
+	WriteLong ( 1, t.playercontrol.thirdperson.startmarkere );
+	WriteLong ( 1, t.playercontrol.thirdperson.charactere );
+	WriteFloat ( 1, t.playercontrol.thirdperson.cameradistance );
+	WriteFloat ( 1, t.playercontrol.thirdperson.cameraheight );
+	WriteFloat ( 1, t.playercontrol.thirdperson.cameraspeed );
 
-	//  20100653 additions
-	WriteFloat (  1,t.playercontrol.thirdperson.camerafocus );
-	WriteLong (  1,t.playercontrol.thirdperson.cameralocked );
-	WriteLong (  1,t.playercontrol.thirdperson.camerashoulder );
-	WriteLong (  1,t.playercontrol.thirdperson.camerafollow );
-	WriteLong (  1,t.playercontrol.thirdperson.camerareticle );
+	// 20100653 additions
+	WriteFloat ( 1, t.playercontrol.thirdperson.camerafocus );
+	WriteLong ( 1, t.playercontrol.thirdperson.cameralocked );
+	WriteLong ( 1, t.playercontrol.thirdperson.camerashoulder );
+	WriteLong ( 1, t.playercontrol.thirdperson.camerafollow );
+	WriteLong ( 1, t.playercontrol.thirdperson.camerareticle );
 
-	CloseFile (  1 );
+	CloseFile ( 1 );
 
-	//  Restore
-	SetDir (  t.old_s.Get() );
+	// Restore
+	SetDir ( oldDir_s.Get() );
 }
 
-void addthisentityprofilesfilestocollection (entityeleproftype* pEleProf)
+void addthisentityprofilesfilestocollection (entityeleproftype* pEleProf, int entid)
 {
-	// takes t.entid and t.e/pEleProf
-	if ( t.entid >= t.entityprofile.size() ) return;
+	if ( entid < 0 || entid >= static_cast<int>(t.entityprofile.size()) ) return;
 	
 	// Ensure we also collect any textures for Building Editor entities - they are not included with the export
-	entityprofiletype& entProfile = t.entityprofile[t.entid];
+	entityprofiletype& entProfile = t.entityprofile[entid];
 	if (strstr(entProfile.model_s.Get(), "smartchild"))
 	{
 		WickedMaterial& material = entProfile.WEMaterial;
@@ -1614,88 +1595,91 @@ void addthisentityprofilesfilestocollection (entityeleproftype* pEleProf)
 	}
 
 	// entity profile file
-	t.tentityname1_s = cstr("entitybank\\") + t.entitybank_s[t.entid];
-	t.tentityname2_s = cstr(Left(t.tentityname1_s.Get(), Len(t.tentityname1_s.Get()) - 4)) + ".bin";
-	if (FileExist(cstr(g.fpscrootdir_s + "\\Files\\" + t.tentityname2_s).Get()) == 1)
+	cstr tentityname1_s = cstr("entitybank\\") + t.entitybank_s[entid];
+	cstr tentityname2_s = cstr(Left(tentityname1_s.Get(), Len(tentityname1_s.Get()) - 4)) + ".bin";
+	cstr tentityname_s;
+	if (FileExist(cstr(g.fpscrootdir_s + "\\Files\\" + tentityname2_s).Get()) == 1)
 	{
-		t.tentityname_s = t.tentityname2_s;
+		tentityname_s = tentityname2_s;
 	}
 	else
 	{
-		t.tentityname_s = t.tentityname1_s;
+		tentityname_s = tentityname1_s;
 	}
-	addtocollection(t.tentityname_s.Get());
+	addtocollection(tentityname_s.Get());
 
 	//PE: NEWLOD
-	std::string lodname = t.tentityname_s.Get();
+	std::string lodname = tentityname_s.Get();
 	replaceAll(lodname, ".fpe", "_lod.dbo");
 	replaceAll(lodname, ".bin", "_lod.dbo");
 	addtocollection((char*)lodname.c_str());
 
 	// and the BULLET file if exist (caused slowdown of standalone level loads!)
-	std::string bulletname = t.tentityname_s.Get();
+	std::string bulletname = tentityname_s.Get();
 	replaceAll(bulletname, ".fpe", ".bullet");
 	addtocollection((char*)bulletname.c_str());
 
 	// entity files in folder
-	t.tentityfolder_s = t.tentityname_s;
-	for (t.n = Len(t.tentityname_s.Get()); t.n >= 1; t.n += -1)
+	cstr tentityfolder_s = tentityname_s;
+	for (int n = Len(tentityname_s.Get()); n >= 1; n += -1)
 	{
-		if (cstr(Mid(t.tentityname_s.Get(), t.n)) == "\\" || cstr(Mid(t.tentityname_s.Get(), t.n)) == "/")
+		if (cstr(Mid(tentityname_s.Get(), n)) == "\\" || cstr(Mid(tentityname_s.Get(), n)) == "/")
 		{
-			t.tentityfolder_s = Left(t.tentityfolder_s.Get(), t.n);
+			tentityfolder_s = Left(tentityfolder_s.Get(), n);
 			break;
 		}
 	}
 
 	//  model files (main model, final appended model and all other append
-	int iModelAppendFileCount = t.entityprofile[t.entid].appendanimmax;
-	if (Len (t.entityappendanim[t.entid][0].filename.Get()) > 0) iModelAppendFileCount = 0;
+	int iModelAppendFileCount = t.entityprofile[entid].appendanimmax;
+	if (Len (t.entityappendanim[entid][0].filename.Get()) > 0) iModelAppendFileCount = 0;
+	cstr tfile1_s;
 	for (int iModels = -1; iModels <= iModelAppendFileCount; iModels++)
 	{
 		LPSTR pModelFile = "";
 		if (iModels == -1)
 		{
-			pModelFile = t.entityprofile[t.entid].model_s.Get();
+			pModelFile = t.entityprofile[entid].model_s.Get();
 		}
 		else
 		{
-			pModelFile = t.entityappendanim[t.entid][iModels].filename.Get();
+			pModelFile = t.entityappendanim[entid][iModels].filename.Get();
 		}
-		t.tlocaltofpe = 1;
-		for (t.n = 1; t.n <= Len(pModelFile); t.n++)
+		int tlocaltofpe = 1;
+		for (int n = 1; n <= Len(pModelFile); n++)
 		{
-			if (cstr(Mid(pModelFile, t.n)) == "\\" || cstr(Mid(pModelFile, t.n)) == "/")
+			if (cstr(Mid(pModelFile, n)) == "\\" || cstr(Mid(pModelFile, n)) == "/")
 			{
-				t.tlocaltofpe = 0; break;
+				tlocaltofpe = 0; break;
 			}
 		}
-		if (t.tlocaltofpe == 1)
+		if (tlocaltofpe == 1)
 		{
-			t.tfile1_s = t.tentityfolder_s + pModelFile;
+			tfile1_s = tentityfolder_s + pModelFile;
 		}
 		else
 		{
-			t.tfile1_s = pModelFile;
+			tfile1_s = pModelFile;
 		}
 
-		t.tfile2_s = cstr(Left(t.tfile1_s.Get(), Len(t.tfile1_s.Get()) - 2)) + ".dbo";
-		if (FileExist(cstr(g.fpscrootdir_s + "\\Files\\" + t.tfile2_s).Get()) == 1)
+		cstr tfile2_s = cstr(Left(tfile1_s.Get(), Len(tfile1_s.Get()) - 2)) + ".dbo";
+		cstr tfile_s;
+		if (FileExist(cstr(g.fpscrootdir_s + "\\Files\\" + tfile2_s).Get()) == 1)
 		{
-			t.tfile_s = t.tfile2_s;
+			tfile_s = tfile2_s;
 		}
 		else
 		{
-			t.tfile_s = t.tfile1_s;
+			tfile_s = tfile1_s;
 		}
-		t.tmodelfile_s = t.tfile_s;
-		addtocollection(t.tmodelfile_s.Get());
+		cstr tmodelfile_s = tfile_s;
+		addtocollection(tmodelfile_s.Get());
 
 		//PE: CCP have missing textures the body part, i seen entrys like 'baseColorMap0    = tempfinalalbedo0.dds' , so always copy over main texture.
-		if (t.entityprofile[t.entid].ischaracter)
+		if (t.entityprofile[entid].ischaracter)
 		{
-			cstr ccpname = t.tmodelfile_s;
-			std::string sParseName = t.tmodelfile_s.Get();
+			cstr ccpname = tmodelfile_s;
+			std::string sParseName = tmodelfile_s.Get();
 			std::string sParseNext = sParseName;
 			replaceAll(sParseName, ".dbo", "0.dds"); //CCP missing main texture (body).
 			addtocollection((char *)sParseName.c_str());
@@ -1708,37 +1692,35 @@ void addthisentityprofilesfilestocollection (entityeleproftype* pEleProf)
 		}
 
 		// if entity did not specify texture it is multi-texture, so interogate model file
-		findalltexturesinmodelfile(t.tmodelfile_s.Get(), t.tentityfolder_s.Get(), t.entityprofile[t.entid].texpath_s.Get());
+		findalltexturesinmodelfile(tmodelfile_s.Get(), tentityfolder_s.Get(), t.entityprofile[entid].texpath_s.Get());
 	}
 
 	// Export entity FPE BMP file if flagged
 	if (g.gexportassets == 1)
 	{
-		t.tfile3_s = cstr(Left(t.tentityname_s.Get(), Len(t.tentityname_s.Get()) - 4)) + ".bmp";
-		if (FileExist(cstr(g.fpscrootdir_s + "\\Files\\" + t.tfile3_s).Get()) == 1)
+		cstr tfile3_s = cstr(Left(tentityname_s.Get(), Len(tentityname_s.Get()) - 4)) + ".bmp";
+		if (FileExist(cstr(g.fpscrootdir_s + "\\Files\\" + tfile3_s).Get()) == 1)
 		{
-			addtocollection(t.tfile3_s.Get());
+			addtocollection(tfile3_s.Get());
 		}
 	}
 
 	// entity characterpose file (if any)
-	t.tfile3_s = cstr(Left(t.tfile1_s.Get(), Len(t.tfile1_s.Get()) - 2)) + ".dat";
-	if (FileExist(cstr(g.fpscrootdir_s + "\\Files\\" + t.tfile3_s).Get()) == 1)
+	cstr tfile3_s = cstr(Left(tfile1_s.Get(), Len(tfile1_s.Get()) - 2)) + ".dat";
+	if (FileExist(cstr(g.fpscrootdir_s + "\\Files\\" + tfile3_s).Get()) == 1)
 	{
-		addtocollection(t.tfile3_s.Get());
+		addtocollection(tfile3_s.Get());
 	}
 
 	// bullet physics hull decomp file (if any)
-	t.tfile3_s = cstr(Left(t.tentityname_s.Get(), Len(t.tentityname_s.Get()) - 4)) + ".bullet";
-	if (FileExist(cstr(g.fpscrootdir_s + "\\Files\\" + t.tfile3_s).Get()) == 1)
+	tfile3_s = cstr(Left(tentityname_s.Get(), Len(tentityname_s.Get()) - 4)) + ".bullet";
+	if (FileExist(cstr(g.fpscrootdir_s + "\\Files\\" + tfile3_s).Get()) == 1)
 	{
-		addtocollection(t.tfile3_s.Get());
+		addtocollection(tfile3_s.Get());
 	}
 
 	// texture files
-	int iStartingType = 0;
-	if (t.e == 0) iStartingType = 1; // parent profile only
-	if (pEleProf) iStartingType = 0; // comes from standalone exporter, using pEleProf as alternative to t.e
+	int iStartingType = (pEleProf != nullptr) ? 0 : 1;
 	for (int iBothTypes = iStartingType; iBothTypes < 2; iBothTypes++)
 	{
 		// can be from ELEPROF of entityelement (older maps point to old texture names) or parent ELEPROF original
@@ -1749,85 +1731,83 @@ void addthisentityprofilesfilestocollection (entityeleproftype* pEleProf)
 			{
 				pTextureFile = pEleProf->texd_s; pAltTextureFile = pEleProf->texaltd_s;
 			}
-			else
-			{
-				pTextureFile = t.entityelement[t.e].eleprof.texd_s; pAltTextureFile = t.entityelement[t.e].eleprof.texaltd_s;
-			}
 		}
 		if (iBothTypes == 1) 
 		{ 
-			pTextureFile = t.entityprofile[t.entid].texd_s; pAltTextureFile = t.entityprofile[t.entid].texaltd_s; 
+			pTextureFile = t.entityprofile[entid].texd_s; pAltTextureFile = t.entityprofile[entid].texaltd_s; 
 		}
-		t.tlocaltofpe = 1;
-		for (t.n = 1; t.n <= Len(pTextureFile.Get()); t.n++)
+		int tlocaltofpe = 1;
+		for (int n = 1; n <= Len(pTextureFile.Get()); n++)
 		{
-			if (cstr(Mid(pTextureFile.Get(), t.n)) == "\\" || cstr(Mid(pTextureFile.Get(), t.n)) == "/")
+			if (cstr(Mid(pTextureFile.Get(), n)) == "\\" || cstr(Mid(pTextureFile.Get(), n)) == "/")
 			{
-				t.tlocaltofpe = 0; break;
+				tlocaltofpe = 0; break;
 			}
 		}
-		if (t.tlocaltofpe == 1)
+		cstr tfile_s;
+		if (tlocaltofpe == 1)
 		{
-			t.tfile_s = t.tentityfolder_s + pTextureFile;
+			tfile_s = tentityfolder_s + pTextureFile;
 		}
 		else
 		{
-			t.tfile_s = pTextureFile;
+			tfile_s = pTextureFile;
 		}
-		addtocollection(t.tfile_s.Get());
+		addtocollection(tfile_s.Get());
 
 		// always allow a DDS texture of same name to be copied over (for test game compatibility)
 		for (int iTwoExtensions = 0; iTwoExtensions <= 1; iTwoExtensions++)
 		{
-			if (iTwoExtensions == 0) t.tfileext_s = Right (t.tfile_s.Get(), 3);
-			if (iTwoExtensions == 1) t.tfileext_s = "dds";
-			if (cstr(Left(Lower(Right(t.tfile_s.Get(), 6)), 2)) == "_d")
+			cstr tfileext_s;
+			if (iTwoExtensions == 0) tfileext_s = Right (tfile_s.Get(), 3);
+			if (iTwoExtensions == 1) tfileext_s = "dds";
+			if (cstr(Left(Lower(Right(tfile_s.Get(), 6)), 2)) == "_d")
 			{
-				t.tfile_s = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - 6)) + "_n." + t.tfileext_s; addtocollection(t.tfile_s.Get());
-				t.tfile_s = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - 6)) + "_s." + t.tfileext_s; addtocollection(t.tfile_s.Get());
-				t.tfile_s = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - 6)) + "_i." + t.tfileext_s; addtocollection(t.tfile_s.Get());
-				t.tfile_s = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - 6)) + "_o." + t.tfileext_s; addtocollection(t.tfile_s.Get());
-				t.tfile_s = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - 6)) + "_cube." + t.tfileext_s; addtocollection(t.tfile_s.Get());
+				cstr tex = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - 6)) + "_n." + tfileext_s; addtocollection(tex.Get());
+				tex = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - 6)) + "_s." + tfileext_s; addtocollection(tex.Get());
+				tex = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - 6)) + "_i." + tfileext_s; addtocollection(tex.Get());
+				tex = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - 6)) + "_o." + tfileext_s; addtocollection(tex.Get());
+				tex = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - 6)) + "_cube." + tfileext_s; addtocollection(tex.Get());
 			}
 			int iNewPBRTextureMode = 0;
-			if (cstr(Left(Lower(Right(t.tfile_s.Get(), 10)), 6)) == "_color") iNewPBRTextureMode = 6 + 4;
-			if (cstr(Left(Lower(Right(t.tfile_s.Get(), 11)), 7)) == "_albedo") iNewPBRTextureMode = 7 + 4;
+			if (cstr(Left(Lower(Right(tfile_s.Get(), 10)), 6)) == "_color") iNewPBRTextureMode = 6 + 4;
+			if (cstr(Left(Lower(Right(tfile_s.Get(), 11)), 7)) == "_albedo") iNewPBRTextureMode = 7 + 4;
 			if (iNewPBRTextureMode > 0)
 			{
 				cstr pToAdd;
-				pToAdd = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - iNewPBRTextureMode)) + "_color." + t.tfileext_s; addtocollection(pToAdd.Get());
-				pToAdd = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - iNewPBRTextureMode)) + "_albedo." + t.tfileext_s; addtocollection(pToAdd.Get());
-				pToAdd = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - iNewPBRTextureMode)) + "_normal." + t.tfileext_s; addtocollection(pToAdd.Get());
-				pToAdd = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - iNewPBRTextureMode)) + "_specular." + t.tfileext_s; addtocollection(pToAdd.Get());
-				pToAdd = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - iNewPBRTextureMode)) + "_metalness." + t.tfileext_s; addtocollection(pToAdd.Get());
-				pToAdd = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - iNewPBRTextureMode)) + "_gloss." + t.tfileext_s; addtocollection(pToAdd.Get());
-				pToAdd = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - iNewPBRTextureMode)) + "_mask." + t.tfileext_s; addtocollection(pToAdd.Get());
-				pToAdd = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - iNewPBRTextureMode)) + "_ao." + t.tfileext_s; addtocollection(pToAdd.Get());
-				pToAdd = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - iNewPBRTextureMode)) + "_height." + t.tfileext_s; addtocollection(pToAdd.Get());
-				pToAdd = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - iNewPBRTextureMode)) + "_detail." + t.tfileext_s; addtocollection(pToAdd.Get());
-				pToAdd = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - iNewPBRTextureMode)) + "_surface." + t.tfileext_s; addtocollection(pToAdd.Get());
-				pToAdd = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - iNewPBRTextureMode)) + "_emissive." + t.tfileext_s; addtocollection(pToAdd.Get());
-				pToAdd = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - iNewPBRTextureMode)) + "_illumination." + t.tfileext_s; addtocollection(pToAdd.Get());
-				pToAdd = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - iNewPBRTextureMode)) + "_illum." + t.tfileext_s; addtocollection(pToAdd.Get());
-				pToAdd = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - iNewPBRTextureMode)) + "_i." + t.tfileext_s; addtocollection(pToAdd.Get());
-				pToAdd = cstr(Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - iNewPBRTextureMode)) + "_cube." + t.tfileext_s; addtocollection(pToAdd.Get());
+				pToAdd = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - iNewPBRTextureMode)) + "_color." + tfileext_s; addtocollection(pToAdd.Get());
+				pToAdd = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - iNewPBRTextureMode)) + "_albedo." + tfileext_s; addtocollection(pToAdd.Get());
+				pToAdd = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - iNewPBRTextureMode)) + "_normal." + tfileext_s; addtocollection(pToAdd.Get());
+				pToAdd = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - iNewPBRTextureMode)) + "_specular." + tfileext_s; addtocollection(pToAdd.Get());
+				pToAdd = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - iNewPBRTextureMode)) + "_metalness." + tfileext_s; addtocollection(pToAdd.Get());
+				pToAdd = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - iNewPBRTextureMode)) + "_gloss." + tfileext_s; addtocollection(pToAdd.Get());
+				pToAdd = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - iNewPBRTextureMode)) + "_mask." + tfileext_s; addtocollection(pToAdd.Get());
+				pToAdd = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - iNewPBRTextureMode)) + "_ao." + tfileext_s; addtocollection(pToAdd.Get());
+				pToAdd = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - iNewPBRTextureMode)) + "_height." + tfileext_s; addtocollection(pToAdd.Get());
+				pToAdd = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - iNewPBRTextureMode)) + "_detail." + tfileext_s; addtocollection(pToAdd.Get());
+				pToAdd = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - iNewPBRTextureMode)) + "_surface." + tfileext_s; addtocollection(pToAdd.Get());
+				pToAdd = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - iNewPBRTextureMode)) + "_emissive." + tfileext_s; addtocollection(pToAdd.Get());
+				pToAdd = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - iNewPBRTextureMode)) + "_illumination." + tfileext_s; addtocollection(pToAdd.Get());
+				pToAdd = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - iNewPBRTextureMode)) + "_illum." + tfileext_s; addtocollection(pToAdd.Get());
+				pToAdd = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - iNewPBRTextureMode)) + "_i." + tfileext_s; addtocollection(pToAdd.Get());
+				pToAdd = cstr(Left(tfile_s.Get(), Len(tfile_s.Get()) - iNewPBRTextureMode)) + "_cube." + tfileext_s; addtocollection(pToAdd.Get());
 			}
 		}
-		if (t.tlocaltofpe == 1)
+		if (tlocaltofpe == 1)
 		{
-			t.tfile_s = t.tentityfolder_s + pAltTextureFile;
+			tfile_s = tentityfolder_s + pAltTextureFile;
 		}
 		else
 		{
-			t.tfile_s = pAltTextureFile;
+			tfile_s = pAltTextureFile;
 		}
-		addtocollection(t.tfile_s.Get());
+		addtocollection(tfile_s.Get());
 	}
 
 	// also include textures specified by textureref entries
 	// and assemblyccp from new character creator plus
 	cstr tFPEFilePath = g.fpscrootdir_s + "\\Files\\";
-	tFPEFilePath += t.tentityname1_s;
+	tFPEFilePath += tentityname1_s;
 	FILE* tFPEFile = GG_fopen (tFPEFilePath.Get(), "r");
 	if (tFPEFile)
 	{
@@ -1853,7 +1833,7 @@ void addthisentityprofilesfilestocollection (entityeleproftype* pEleProf)
 					}
 					else
 					{
-						cstr tTextureFile = cstr(t.tentityfolder_s + cstr(pToFilename));
+						cstr tTextureFile = cstr(tentityfolder_s + cstr(pToFilename));
 						addtocollection(tTextureFile.Get());
 					}
 				}
@@ -1875,7 +1855,7 @@ void addthisentityprofilesfilestocollection (entityeleproftype* pEleProf)
 					}
 					else
 					{
-						cstr tTextureFile = cstr(t.tentityfolder_s + cstr(pToFilename));
+						cstr tTextureFile = cstr(tentityfolder_s + cstr(pToFilename));
 						addtocollection(tTextureFile.Get());
 					}
 				}
@@ -1897,7 +1877,7 @@ void addthisentityprofilesfilestocollection (entityeleproftype* pEleProf)
 					}
 					else
 					{
-						cstr tTextureFile = cstr(t.tentityfolder_s + cstr(pToFilename));
+						cstr tTextureFile = cstr(tentityfolder_s + cstr(pToFilename));
 						addtocollection(tTextureFile.Get());
 					}
 				}
@@ -1912,7 +1892,7 @@ void addthisentityprofilesfilestocollection (entityeleproftype* pEleProf)
 					if (pToFilename[strlen(pToFilename) - 1] == 10) pToFilename[strlen(pToFilename) - 1] = 0;
 					if (pToFilename[strlen(pToFilename) - 1] == 13) pToFilename[strlen(pToFilename) - 1] = 0;
 					if (pToFilename[strlen(pToFilename) - 1] == 10) pToFilename[strlen(pToFilename) - 1] = 0;
-					cstr tTextureFile = cstr(t.tentityfolder_s + cstr(pToFilename));
+					cstr tTextureFile = cstr(tentityfolder_s + cstr(pToFilename));
 					addtocollection (tTextureFile.Get());
 				}
 			}
@@ -1937,7 +1917,7 @@ void addthisentityprofilesfilestocollection (entityeleproftype* pEleProf)
 						strcpy(pAssemblyReference, assemblyString_s.Get());
 						if (pAssemblyReference[strlen(pAssemblyReference) - 1] == '\n') pAssemblyReference[strlen(pAssemblyReference) - 1] = 0;
 						strlwr(pAssemblyReference);
-						int iBaseCount = g_CharacterType.size();// 4; //(3) PE: Added zombie female
+						int iBaseCount = static_cast<int>(g_CharacterType.size());// 4; //(3) PE: Added zombie female
 						for (int iBaseIndex = 0; iBaseIndex < iBaseCount; iBaseIndex++)
 						{
 							LPSTR pBaseName = "";
@@ -1964,11 +1944,12 @@ void addthisentityprofilesfilestocollection (entityeleproftype* pEleProf)
 								cstr pTmpFile = pPartFolder + pAssemblyReference;
 								char pRemoveTag[MAX_PATH];
 								strcpy(pRemoveTag, pTmpFile.Get());
-								for (int nnn = 0; nnn < strlen(pRemoveTag); nnn++)
+								const int tagLen = static_cast<int>(strlen(pRemoveTag));
+								for (int nnn = 0; nnn < tagLen; nnn++)
 								{
 									if (pRemoveTag[nnn] == '[')
 									{
-										if (pRemoveTag[nnn - 1] == ' ') nnn--;
+										if (nnn > 0 && pRemoveTag[nnn - 1] == ' ') nnn--;
 										pRemoveTag[nnn] = 0;
 										break;
 									}
@@ -2145,11 +2126,11 @@ void mapfile_collectfoldersandfiles (cstr levelpathfolder)
 	addtocollection("skybank\\clear\\"); //for fallback.
 
 	// add any material decals that are active
-	for (t.m = 0; t.m <= g.gmaterialmax; t.m++)
+	for (int m = 0; m <= g.gmaterialmax; m++)
 	{
-		if (t.material[t.m].usedinlevel == 1)
+		if (t.material[m].usedinlevel == 1)
 		{
-			cstr decalFolder_s = cstr("gamecore\\decals\\") + t.material[t.m].decal_s;
+			cstr decalFolder_s = cstr("gamecore\\decals\\") + t.material[m].decal_s;
 			addfoldertocollection(decalFolder_s.Get());
 		}
 	}
@@ -2338,7 +2319,7 @@ void mapfile_collectfoldersandfiles (cstr levelpathfolder)
 		if (strlen(Storyboard.gamename) > 0)
 		{
 			//Add project.
-			char project[MAX_PATH], project_files[MAX_PATH];
+			char project[MAX_PATH];
 			strcpy(project, "projectbank\\");
 			strcat(project, Storyboard.gamename);
 			addfoldertocollection(project);
@@ -2423,7 +2404,7 @@ void mapfile_collectfoldersandfiles (cstr levelpathfolder)
 void mapfile_savestandalone_start ( void )
 {
 	// first grab current folder for later restoring
-	t.told_s=GetDir();
+	g_mapfile_told_s = GetDir();
 
 	// In Classic, I would run through the load process and collect files as they
 	// where loaded in. In Reloaded, the currently loaded level data is scanned
@@ -2434,21 +2415,20 @@ void mapfile_savestandalone_start ( void )
 	t.levelsforstandalone = 1;
 
 	// 040316 - v1.13b1 - find the nested folder structure of the level (could be in map bank\Easter\level1.fpm)
-	t.told_s=GetDir();
-	cstr mapbankpath;
-	cstr levelpathfolder;
+	g_mapfile_told_s = GetDir();
 	if ( g.projectfilename_s.Get()[1] != ':' )
 	{
 		// relative project path
 		g_mapfile_mapbankpath = cstr("mapbank\\");
-		g_mapfile_levelpathfolder = Right ( g.projectfilename_s.Get(), strlen(g.projectfilename_s.Get()) - strlen(g_mapfile_mapbankpath.Get()) );
 	}
 	else
 	{
 		// absolute project path
 		g_mapfile_mapbankpath = g.mysystem.mapbankAbs_s;
-		g_mapfile_levelpathfolder = Right ( g.projectfilename_s.Get(), strlen(g.projectfilename_s.Get()) - strlen(g_mapfile_mapbankpath.Get()) );
 	}
+	int projLen = static_cast<int>(strlen(g.projectfilename_s.Get()));
+	int bankLen = static_cast<int>(strlen(g_mapfile_mapbankpath.Get()));
+	g_mapfile_levelpathfolder = (projLen >= bankLen) ? Right(g.projectfilename_s.Get(), projLen - bankLen) : "";
 
 	bool bGotNestedPath = false;
 	for ( int n = Len(g_mapfile_levelpathfolder.Get()) ; n >= 1 ; n+= -1 )
@@ -2472,11 +2452,11 @@ void mapfile_savestandalone_start ( void )
 	{
 		t.exename_s=Left(t.exename_s.Get(),Len(t.exename_s.Get())-4);
 	}
-	for ( t.n = Len(t.exename_s.Get()) ; t.n >= 1 ; t.n+= -1 )
+	for ( int n = Len(t.exename_s.Get()) ; n >= 1 ; n-- )
 	{
-		if (  cstr(Mid(t.exename_s.Get(),t.n)) == "\\" || cstr(Mid(t.exename_s.Get(),t.n)) == "/" ) 
+		if (  cstr(Mid(t.exename_s.Get(),n)) == "\\" || cstr(Mid(t.exename_s.Get(),n)) == "/" ) 
 		{
-			t.exename_s=Right(t.exename_s.Get(),Len(t.exename_s.Get())-t.n);
+			t.exename_s=Right(t.exename_s.Get(),Len(t.exename_s.Get())-n);
 			break;
 		}
 	}
@@ -2505,15 +2485,15 @@ void mapfile_savestandalone_start ( void )
 	{
 		g.exedir_s="?";
 		SetDir ( g.myownrootdir_s.Get() );
-		t.mygamesfolder_s = "My Games";
-		if ( PathExist(t.mygamesfolder_s.Get()) == 0 ) MakeDirectory ( t.mygamesfolder_s.Get() );
-		if ( PathExist(t.mygamesfolder_s.Get()) == 1 ) 
+		cstr mygamesfolder_s = "My Games";
+		if ( PathExist(mygamesfolder_s.Get()) == 0 ) MakeDirectory ( mygamesfolder_s.Get() );
+		if ( PathExist(mygamesfolder_s.Get()) == 1 ) 
 		{
-			SetDir ( t.mygamesfolder_s.Get() );
+			SetDir ( mygamesfolder_s.Get() );
 			g.exedir_s = GetDir();
 		}
 	}
-	SetDir ( t.told_s.Get() );
+	SetDir ( g_mapfile_told_s.Get() );
 
 	// Path to EXE (for dealing with relative EXE paths later)
 	if ( g.exedir_s.Get()[1] == ':' )
@@ -2530,7 +2510,7 @@ void mapfile_savestandalone_start ( void )
 	g_bMakingAStandaloneUsingFileCollectionArray = true;
 
 	// Collect all files and folders and store in t.filecollection_s
-	mapfile_collectfoldersandfiles ( levelpathfolder );
+	mapfile_collectfoldersandfiles ( "" );
 
 	// Pre-Stage 2 - clear a list which will collect all folders/files to REMOVE from the final standalone file transfer
 	// list, courtesy of the special FPP file which controls the final files to be used for standalone creation
@@ -2554,14 +2534,14 @@ void mapfile_savestandalone_stage2a ( void )
 		g_Storyboard_Current_Level = g_Storyboard_First_Level_Node;
 		strcpy(g_Storyboard_Current_fpm, g_Storyboard_First_fpm);
 	}
-	t.tlevelfile_s="";
-	t.tlevelstoprocess = 1;
+	cstr tlevelfile_s = "";
+	int tlevelstoprocess = 1;
 	g_mapfile_iNumberOfEntitiesAcrossAllLevels = 0;
-	while ( t.tlevelstoprocess == 1 ) 
+	while ( tlevelstoprocess == 1 ) 
 	{
-		if ( Len(t.tlevelfile_s.Get())>1 ) 
+		if ( Len(tlevelfile_s.Get())>1 ) 
 		{
-			g.projectfilename_s=t.tlevelfile_s;
+			g.projectfilename_s = tlevelfile_s;
 			mapfile_loadproject_fpm ( );
 			game_loadinentitiesdatainlevel ( );
 			bWeUnloadedTheFirstLevel = true;
@@ -2574,67 +2554,67 @@ void mapfile_savestandalone_stage2a ( void )
 		g_mapfile_iNumberOfEntitiesAcrossAllLevels += g.entityelementlist;
 		cstr pLevelObjectsCountAllLevels = cstr("g_mapfile_iNumberOfEntitiesAcrossAllLevels==") + cstr(g_mapfile_iNumberOfEntitiesAcrossAllLevels);
 		timestampactivity(0, pLevelObjectsCountAllLevels.Get());
-		for ( t.e = 1; t.e <= g.entityelementlist; t.e++ )
+		for ( int e = 1; e <= g.entityelementlist; ++e )
 		{
-			t.entid=t.entityelement[t.e].bankindex;
-			if ( t.entid>0 ) 
+			int entid = t.entityelement[e].bankindex;
+			if ( entid > 0 ) 
 			{
 				// suspect old entID references, so produce a log if so
-				if (t.entid >= t.entityprofile.size())
+				if (entid >= (int)t.entityprofile.size())
 				{
 					// this is bad
-					cstr pOldEntIDReference = cstr("ENTITY REF ERROR:") + cstr(t.e) + cstr(" uses ParentID of ") + cstr(t.entid) + cstr(" >= ") + cstr((int)t.entityprofile.size());
+					cstr pOldEntIDReference = cstr("ENTITY REF ERROR:") + cstr(e) + cstr(" uses ParentID of ") + cstr(entid) + cstr(" >= ") + cstr((int)t.entityprofile.size());
 					timestampactivity(0, pOldEntIDReference.Get());
 					continue;
 				}
 
 				// zone marker can reference other levels to jump to
-				if ( t.entityprofile[t.entid].ismarker == 3 ) 
+				if ( t.entityprofile[entid].ismarker == 3 ) 
 				{
-					t.tlevelfile_s=t.entityelement[t.e].eleprof.ifused_s;
-					if ( Len(t.tlevelfile_s.Get()) > 1 ) 
+					tlevelfile_s = t.entityelement[e].eleprof.ifused_s;
+					if ( Len(tlevelfile_s.Get()) > 1 ) 
 					{
-						t.tlevelfile_s=cstr("mapbank\\")+g_mapfile_levelpathfolder+t.tlevelfile_s+".fpm";
-						timestampactivity(0, t.tlevelfile_s.Get());
-						if ( FileExist(cstr(g.fpscrootdir_s+"\\Files\\"+t.tlevelfile_s).Get()) == 1 )
+						tlevelfile_s = cstr("mapbank\\") + g_mapfile_levelpathfolder + tlevelfile_s + ".fpm";
+						timestampactivity(0, tlevelfile_s.Get());
+						if ( FileExist(cstr(g.fpscrootdir_s + "\\Files\\" + tlevelfile_s).Get()) == 1 )
 						{
 							++t.levelmax;
-							t.levellist_s[t.levelmax]=t.tlevelfile_s;
+							t.levellist_s[t.levelmax] = tlevelfile_s;
 							cstr pLogLevelAdded = cstr("added to list ") + cstr(t.levelmax);
 							timestampactivity(0, pLogLevelAdded.Get());
 						}
 						else
-							t.tlevelfile_s="";
+							tlevelfile_s = "";
 					}
 				}
 			}
 		}
 		if ( t.levelindex < t.levelmax ) 
 		{
-			t.tlevelfile_s = "";
-			t.tlevelstoprocess = 0;
-			while ( t.levelindex < t.levelmax && strcmp ( t.tlevelfile_s.Get(), "" )==NULL ) 
+			tlevelfile_s = "";
+			tlevelstoprocess = 0;
+			while ( t.levelindex < t.levelmax && strcmp ( tlevelfile_s.Get(), "" ) == 0 ) 
 			{
 				++t.levelindex;
-				t.ttrylevelfile_s=t.levellist_s[t.levelindex];
-				for ( t.n = 1; t.n <= t.levelindex-1; t.n++ )
+				cstr ttrylevelfile_s = t.levellist_s[t.levelindex];
+				for ( int n = 1; n <= t.levelindex - 1; ++n )
 				{
-					if ( t.ttrylevelfile_s == t.levellist_s[t.n] ) 
+					if ( ttrylevelfile_s == t.levellist_s[n] ) 
 					{
-						t.ttrylevelfile_s = "";
+						ttrylevelfile_s = "";
 						break;
 					}
 				}
-				if ( t.ttrylevelfile_s != "" ) 
+				if ( ttrylevelfile_s != "" ) 
 				{
-					t.tlevelfile_s = t.ttrylevelfile_s;
-					t.tlevelstoprocess = 1;
+					tlevelfile_s = ttrylevelfile_s;
+					tlevelstoprocess = 1;
 				}
 			}
 		}
 		else
 		{
-			t.tlevelstoprocess = 0;
+			tlevelstoprocess = 0;
 		}
 	}
 	g_mapfile_iNumberOfLevels = 1 + t.levelmax;
@@ -2642,30 +2622,30 @@ void mapfile_savestandalone_stage2a ( void )
 	timestampactivity(0, pLogNumberOfLevels.Get());
 
 	// Stage 2 - collect all files (from all levels)
-	t.levelindex=0;
-	t.tlevelfile_s="";
-	t.tlevelstoprocess = 1;
+	t.levelindex = 0;
+	g_mapfile_tlevelfile_s = "";
+	g_mapfile_tlevelstoprocess = 1;
 
 	if (g.projectfilename_s != t.tmasterlevelfile_s)
 		restore_old_map = true;
 	g.projectfilename_s = t.tmasterlevelfile_s;
 	if ( bWeUnloadedTheFirstLevel == true )
-		t.tlevelfile_s = t.tmasterlevelfile_s;
+		g_mapfile_tlevelfile_s = t.tmasterlevelfile_s;
 }
 
 int mapfile_savestandalone_stage2b ( void )
 {
 	int iMoveAlong = 0;
-	cstr pProgressMarkerLog = cstr("tlevelstoprocess:") + t.tlevelstoprocess;
+	cstr pProgressMarkerLog = cstr("tlevelstoprocess:") + g_mapfile_tlevelstoprocess;
 	timestampactivity(0, pProgressMarkerLog.Get());
-	if ( t.tlevelstoprocess == 1 )
+	if ( g_mapfile_tlevelstoprocess == 1 )
 	{
 		// load in level FPM
-		cstr pProgressLevelLog = cstr("tlevelfile:") + t.tlevelfile_s;
+		cstr pProgressLevelLog = cstr("tlevelfile:") + g_mapfile_tlevelfile_s;
 		timestampactivity(0, pProgressLevelLog.Get());
-		if ( Len(t.tlevelfile_s.Get())>1 )
+		if ( Len(g_mapfile_tlevelfile_s.Get())>1 )
 		{
-			g.projectfilename_s=t.tlevelfile_s;
+			g.projectfilename_s = g_mapfile_tlevelfile_s;
 			mapfile_loadproject_fpm ( );
 			game_loadinentitiesdatainlevel ( );
 			if (t.gamevisuals.bEnableEmptyLevelMode == false)
@@ -2676,7 +2656,7 @@ int mapfile_savestandalone_stage2b ( void )
 		}
 
 		// 061018 - check if an FPP file exists for this level file
-		cstr pFPPFile = cstr(Left(g.projectfilename_s.Get(),strlen(g.projectfilename_s.Get())-4)) + ".fpp";
+		cstr pFPPFile = cstr(Left(g.projectfilename_s.Get(), static_cast<int>(strlen(g.projectfilename_s.Get())) - 4)) + ".fpp";
 		cstr pLogFPP = cstr("pFPPFile:") + pFPPFile;
 		timestampactivity(0, pLogFPP.Get());
 		if ( FileExist( pFPPFile.Get() ) == 1 )
@@ -2684,12 +2664,12 @@ int mapfile_savestandalone_stage2b ( void )
 			// used to specify additional files required for standalone executable
 			// handy as a workaround until reported issue resolved
 			int iFPPStandaloneExtraFilesMode = 0;
-			Dim ( t.data_s, 999 );
-			LoadArray ( pFPPFile.Get(), t.data_s );
-			for ( t.l = 0 ; t.l <= 999; t.l++ )
+			std::vector<cstr> data_s(1000);
+			LoadArray ( pFPPFile.Get(), data_s );
+			for ( size_t l = 0 ; l < data_s.size(); l++ )
 			{
-				t.line_s = t.data_s[t.l];
-				LPSTR pLine = t.line_s.Get();
+				cstr line_s = data_s[l];
+				LPSTR pLine = line_s.Get();
 				if ( Len(pLine) > 0 )
 				{
 					cstr pLofFPPLine = cstr("FPP:") + pLine;
@@ -2741,7 +2721,6 @@ int mapfile_savestandalone_stage2b ( void )
 					}
 				}
 			}
-			UnDim(t.data_s);
 		}	
 
 		//  chosen sky, terrain and veg
@@ -2754,10 +2733,10 @@ int mapfile_savestandalone_stage2b ( void )
 		addfoldertocollection("charactercreatorplus\\skins");
 
 		// start for loop
-		t.e = 1;
+		g_mapfile_iEntityElementIndex = 1;
 		cstr pProgressPercLog = cstr("g_mapfile_fProgressSpan:") + g_mapfile_fProgressSpan;
 		timestampactivity(0, pProgressPercLog.Get());
-		g_mapfile_fProgressSpan = g_mapfile_iNumberOfEntitiesAcrossAllLevels;
+		g_mapfile_fProgressSpan = (g_mapfile_iNumberOfEntitiesAcrossAllLevels > 0) ? static_cast<float>(g_mapfile_iNumberOfEntitiesAcrossAllLevels) : 1.0f;
 	}
 	else
 	{
@@ -2768,10 +2747,6 @@ int mapfile_savestandalone_stage2b ( void )
 
 void mapfile_addallentityrelatedfiles ( int entid, entityeleproftype* pEleProf )
 {
-	// Store current
-	int iStoredEntID = t.entid;
-	t.entid = entid;
-
 	//PE: Add any custom explosions.
 	if (pEleProf->explodable_decalname.Len() > 0)
 	{
@@ -2818,7 +2793,7 @@ void mapfile_addallentityrelatedfiles ( int entid, entityeleproftype* pEleProf )
 			if (tempeleprof.PropertiesVariable.VariableType[i] == 2 || tempeleprof.PropertiesVariable.VariableType[i] == 7)
 			{
 				// CHeck if the string specifies a folder within the "imagebank\"
-				int variableLength = strlen(tempeleprof.PropertiesVariable.VariableValue[i]);
+				int variableLength = static_cast<int>(strlen(tempeleprof.PropertiesVariable.VariableValue[i]));
 				if (variableLength > 9 && (strnicmp(tempeleprof.PropertiesVariable.VariableValue[i], "imagebank", 9) == NULL) )
 				{
 					// and to avoid adding the whole imagebank, only add if a known 'grouped folder' used by specific behaviors such as imagepanel.lua
@@ -2981,102 +2956,105 @@ void mapfile_addallentityrelatedfiles ( int entid, entityeleproftype* pEleProf )
 		}
 	}
 
-	// gives "t.entid" and adds ALL entity profile related files to the collection (not t.e(pEleProf specific)
-	addthisentityprofilesfilestocollection(pEleProf);
+	// gives "entid" and adds ALL entity profile related files to the collection (not pEleProf specific)
+	addthisentityprofilesfilestocollection(pEleProf, entid);
 
 	// shader file
-	t.tfile_s = pEleProf->effect_s; addtocollection(t.tfile_s.Get());
+	cstr effectFile = pEleProf->effect_s;
+	addtocollection(effectFile.Get());
 	//Try to take the .blob.
-	if (cstr(Lower(Right(t.tfile_s.Get(), 3))) == ".fx") 
+	if (cstr(Lower(Right(effectFile.Get(), 3))) == ".fx") 
 	{
-		t.tfile_s = Left(t.tfile_s.Get(), Len(t.tfile_s.Get()) - 3);
-		t.tfile_s = t.tfile_s + ".blob";
-		if (FileExist(t.tfile_s.Get()) == 1)
+		cstr blobFile = cstr(Left(effectFile.Get(), Len(effectFile.Get()) - 3)) + ".blob";
+		if (FileExist(blobFile.Get()) == 1)
 		{
-			addtocollection(t.tfile_s.Get());
+			addtocollection(blobFile.Get());
 		}
 	}
 
 	// script files
-	cstr script_name = "";
-	script_name = "scriptbank\\";
-	script_name += pEleProf->aimain_s;
-	t.tfile_s = script_name;
-	addtocollection(t.tfile_s.Get());
+	cstr script_name = cstr("scriptbank\\") + pEleProf->aimain_s;
+	addtocollection(script_name.Get());
 	// Copy .byc too
-	std::string sLuaFile = t.tfile_s.Get();
+	std::string sLuaFile = script_name.Get();
 	replaceAll(sLuaFile, ".lua", ".byc");
 	addtocollection((char*)sLuaFile.c_str());
 
 	// for the script associated, scan it and include any references to other scripts
-	scanscriptfileandaddtocollection(t.tfile_s.Get());
+	scanscriptfileandaddtocollection(script_name.Get());
 
 	// sound files
-	if (t.entityprofile[t.entid].ismarker == 1 && pEleProf->soundset_s.Len() > 0) 
+	if (t.entityprofile[entid].ismarker == 1 && pEleProf->soundset_s.Len() > 0) 
 	{
 		//PE: Make sure voiceset from player start marker is added.
-		t.tfile_s = pEleProf->soundset_s;
-		addfoldertocollection(cstr(cstr("audiobank\\voices\\") + cstr(t.tfile_s.Get())).Get());
+		addfoldertocollection(cstr(cstr("audiobank\\voices\\") + pEleProf->soundset_s).Get());
 	}
-	t.tfile_s = pEleProf->soundset_s; addtocollection(t.tfile_s.Get());
-	t.tfile_s = pEleProf->soundset1_s; addtocollection(t.tfile_s.Get());
-	t.tfile_s = pEleProf->soundset2_s; addtocollection(t.tfile_s.Get());
-	t.tfile_s = pEleProf->soundset3_s; addtocollection(t.tfile_s.Get());
-	t.tfile_s = pEleProf->soundset4a_s; addtocollection(t.tfile_s.Get());
-	t.tfile_s = pEleProf->soundset5_s; addtocollection(t.tfile_s.Get());
-	t.tfile_s = pEleProf->soundset6_s; addtocollection(t.tfile_s.Get());
-	t.tfile_s = pEleProf->overrideanimset_s; addtocollection(t.tfile_s.Get());
+	addtocollection(pEleProf->soundset_s.Get());
+	addtocollection(pEleProf->soundset1_s.Get());
+	addtocollection(pEleProf->soundset2_s.Get());
+	addtocollection(pEleProf->soundset3_s.Get());
+	addtocollection(pEleProf->soundset4a_s.Get());
+	addtocollection(pEleProf->soundset5_s.Get());
+	addtocollection(pEleProf->soundset6_s.Get());
+	addtocollection(pEleProf->overrideanimset_s.Get());
 
 	// lipsync files associated with soundset references
-	cstr tmpFile_s = pEleProf->soundset_s; tmpFile_s = cstr(Left(tmpFile_s.Get(), strlen(tmpFile_s.Get()) - 4)) + ".lip"; addtocollection(tmpFile_s.Get());
-	tmpFile_s = pEleProf->soundset1_s; tmpFile_s = cstr(Left(tmpFile_s.Get(), strlen(tmpFile_s.Get()) - 4)) + ".lip"; addtocollection(tmpFile_s.Get());
-	tmpFile_s = pEleProf->soundset2_s; tmpFile_s = cstr(Left(tmpFile_s.Get(), strlen(tmpFile_s.Get()) - 4)) + ".lip"; addtocollection(tmpFile_s.Get());
-	tmpFile_s = pEleProf->soundset3_s; tmpFile_s = cstr(Left(tmpFile_s.Get(), strlen(tmpFile_s.Get()) - 4)) + ".lip"; addtocollection(tmpFile_s.Get());
-	tmpFile_s = pEleProf->soundset4a_s; tmpFile_s = cstr(Left(tmpFile_s.Get(), strlen(tmpFile_s.Get()) - 4)) + ".lip"; addtocollection(tmpFile_s.Get());
-	tmpFile_s = pEleProf->soundset5_s; tmpFile_s = cstr(Left(tmpFile_s.Get(), strlen(tmpFile_s.Get()) - 4)) + ".lip"; addtocollection(tmpFile_s.Get());
-	tmpFile_s = pEleProf->soundset6_s; tmpFile_s = cstr(Left(tmpFile_s.Get(), strlen(tmpFile_s.Get()) - 4)) + ".lip"; addtocollection(tmpFile_s.Get());
+	auto addLipIfValid = [](const cstr& soundset) {
+		if (soundset.Len() > 4) {
+			std::string lip(soundset.Get(), soundset.Len() - 4);
+			lip += ".lip";
+			addtocollection(lip.c_str());
+		}
+	};
+	addLipIfValid(pEleProf->soundset_s);
+	addLipIfValid(pEleProf->soundset1_s);
+	addLipIfValid(pEleProf->soundset2_s);
+	addLipIfValid(pEleProf->soundset3_s);
+	addLipIfValid(pEleProf->soundset4a_s);
+	addLipIfValid(pEleProf->soundset5_s);
+	addLipIfValid(pEleProf->soundset6_s);
 
 	// collectable guns
 	cstr pGunPresent = "";
-	if (Len(t.entityprofile[t.entid].isweapon_s.Get()) > 1) pGunPresent = t.entityprofile[t.entid].isweapon_s;
-	if (t.entityprofile[t.entid].isammo == 0)
+	if (Len(t.entityprofile[entid].isweapon_s.Get()) > 1) pGunPresent = t.entityprofile[entid].isweapon_s;
+	if (t.entityprofile[entid].isammo == 0)
 	{
 		// 270618 - only accept HASWEAPON if NOT ammo, so executables are not bloated with ammo that specifies another weapon type
 		if (Len(pEleProf->hasweapon_s.Get()) > 1) pGunPresent = pEleProf->hasweapon_s;
 	}
 	if (Len(pGunPresent.Get()) > 1)
 	{
-		t.tfile_s = cstr("gamecore\\guns\\") + pGunPresent; addfoldertocollection(t.tfile_s.Get());
+		addfoldertocollection(cstr(cstr("gamecore\\guns\\") + pGunPresent).Get());
 		t.findgun_s = Lower(pGunPresent.Get());
 		gun_findweaponindexbyname ();
 		if (t.foundgunid > 0)
 		{
 			// ammo and brass
-			for (t.x = 0; t.x <= 1; t.x++)
+			for (int x = 0; x <= 1; x++)
 			{
 				// ammo files
-				t.tpoolindex = g.firemodes[t.foundgunid][t.x].settings.poolindex;
-				if (t.tpoolindex > 0)
+				int tpoolindex = g.firemodes[t.foundgunid][x].settings.poolindex;
+				if (tpoolindex > 0)
 				{
-					t.tfile_s = cstr("gamecore\\ammo\\") + t.ammopool[t.tpoolindex].name_s;
-					if (PathExist (t.tfile_s.Get())) addfoldertocollection(t.tfile_s.Get());
+					cstr poolFile = cstr("gamecore\\ammo\\") + t.ammopool[tpoolindex].name_s;
+					if (PathExist (poolFile.Get())) addfoldertocollection(poolFile.Get());
 				}
 
 				// brass files
-				int iBrassIndex = g.firemodes[t.foundgunid][t.x].settings.brass;
+				int iBrassIndex = g.firemodes[t.foundgunid][x].settings.brass;
 				if (iBrassIndex > 0)
 				{
-					t.tfile_s = cstr(cstr("gamecore\\brass\\brass") + Str(iBrassIndex));
-					if (PathExist (t.tfile_s.Get()))
-						addfoldertocollection(t.tfile_s.Get());
+					cstr brassFile = cstr(cstr("gamecore\\brass\\brass") + Str(iBrassIndex));
+					if (PathExist (brassFile.Get()))
+						addfoldertocollection(brassFile.Get());
 				}
 
 				// and any projectile files associated with it
 				cstr pProjectilePresent = t.gun[t.foundgunid].projectile_s;
 				if (Len(pProjectilePresent.Get()) > 1)
 				{
-					t.tfile_s = cstr("gamecore\\projectiletypes\\") + pProjectilePresent;
-					addfoldertocollection(t.tfile_s.Get());
+					cstr projFile = cstr("gamecore\\projectiletypes\\") + pProjectilePresent;
+					addfoldertocollection(projFile.Get());
 				}
 			}
 
@@ -3084,42 +3062,36 @@ void mapfile_addallentityrelatedfiles ( int entid, entityeleproftype* pEleProf )
 			cstr pProjectilePresent = t.gun[t.foundgunid].projectile_s;
 			if (Len(pProjectilePresent.Get()) > 1)
 			{
-				t.tfile_s = cstr("gamecore\\projectiletypes\\") + pProjectilePresent;
-				addfoldertocollection(t.tfile_s.Get());
+				cstr projFile = cstr("gamecore\\projectiletypes\\") + pProjectilePresent;
+				addfoldertocollection(projFile.Get());
 			}
 		}
 	}
 
 	// player start marler
-	if (t.entityprofile[t.entid].ismarker == 1)
+	if (t.entityprofile[entid].ismarker == 1)
 	{
 		// can specify custom arms for weapons, need the hands
 		if (pEleProf->texaltd_s.Len() > 0)
 		{
-			t.tfile_s = cstr("gamecore\\hands\\") + pEleProf->texaltd_s;
-			addfoldertocollection(t.tfile_s.Get());
+			cstr handsFile = cstr("gamecore\\hands\\") + pEleProf->texaltd_s;
+			addfoldertocollection(handsFile.Get());
 		}
 	}
 
 	// zone marker can reference other levels to jump to
-	if (t.entityprofile[t.entid].ismarker == 3)
+	if (t.entityprofile[entid].ismarker == 3)
 	{
-		t.tlevelfile_s = pEleProf->ifused_s;
-		if (Len(t.tlevelfile_s.Get()) > 1)
+		cstr tlevelfile_s = pEleProf->ifused_s;
+		if (Len(tlevelfile_s.Get()) > 1)
 		{
-			t.tlevelfile_s = cstr("mapbank\\") + g_mapfile_levelpathfolder + t.tlevelfile_s + ".fpm";
-			if (FileExist(cstr(g.fpscrootdir_s + "\\Files\\" + t.tlevelfile_s).Get()) == 1)
+			tlevelfile_s = cstr("mapbank\\") + g_mapfile_levelpathfolder + tlevelfile_s + ".fpm";
+			if (FileExist(cstr(g.fpscrootdir_s + "\\Files\\" + tlevelfile_s).Get()) == 1)
 			{
-				addtocollection(t.tlevelfile_s.Get());
-			}
-			else
-			{
-				// nope, just a regular string entry in the marker field
-				t.tlevelfile_s = "";
+				addtocollection(tlevelfile_s.Get());
 			}
 		}
 	}
-	t.entid = iStoredEntID;
 }
 
 void mapfile_copyallfilecollectiontopreferredprojectfolder(void)
@@ -3180,19 +3152,19 @@ int mapfile_savestandalone_stage2c ( void )
 {
 	// choose all entities and associated files
 	int iMoveAlong = 0;
-	if ( t.e <= g.entityelementlist )
+	if ( g_mapfile_iEntityElementIndex <= g.entityelementlist )
 	{
-		t.entid=t.entityelement[t.e].bankindex;
-		if ( t.entid>0 ) 
+		int entid = t.entityelement[g_mapfile_iEntityElementIndex].bankindex;
+		if ( entid > 0 ) 
 		{
 			// most eleprof related files
-			mapfile_addallentityrelatedfiles(t.entid, &t.entityelement[t.e].eleprof);
+			mapfile_addallentityrelatedfiles(entid, &t.entityelement[g_mapfile_iEntityElementIndex].eleprof);
 
 			// and purey entity element related files
-			if (!t.entityelement[t.e].eleprof.bUseFPESettings)
+			if (!t.entityelement[g_mapfile_iEntityElementIndex].eleprof.bUseFPESettings)
 			{
 				// Also add any custom material textures
-				sObject* pObject = GetObjectData(t.entityelement[t.e].obj);
+				sObject* pObject = GetObjectData(t.entityelement[g_mapfile_iEntityElementIndex].obj);
 				if (pObject)
 				{
 					for (int i = 0; i < pObject->iFrameCount; i++)
@@ -3203,7 +3175,7 @@ int mapfile_savestandalone_stage2c ( void )
 							sMesh* pMesh = pFrame->pMesh;
 							if (pMesh)
 							{
-								wiScene::MaterialComponent* pMaterialComponent = wiScene::GetScene().materials.GetComponent(pMesh->wickedmaterialindex);
+								wiScene::MaterialComponent* pMaterialComponent = wiScene::GetScene().materials.GetComponent((wiECS::Entity)pMesh->wickedmaterialindex);
 								if (pMaterialComponent)
 								{
 									if (pMaterialComponent->textures[0].name.length() > 0)
@@ -3219,15 +3191,15 @@ int mapfile_savestandalone_stage2c ( void )
 					}
 				}
 				//PE: And add any custom wematerial texture settings.
-				if (t.entityelement[t.e].eleprof.WEMaterial.MaterialActive)
+				if (t.entityelement[g_mapfile_iEntityElementIndex].eleprof.WEMaterial.MaterialActive)
 				{
 					//PE: Need relative path here.
-					cstr entpath = cstr("entitybank\\") + t.entitybank_s[t.entid];
-					for (t.n = Len(entpath.Get()); t.n >= 1; t.n += -1)
+					cstr entpath = cstr("entitybank\\") + t.entitybank_s[entid];
+					for (int n = Len(entpath.Get()); n >= 1; n--)
 					{
-						if (cstr(Mid(entpath.Get(), t.n)) == "\\" || cstr(Mid(entpath.Get(), t.n)) == "/")
+						if (cstr(Mid(entpath.Get(), n)) == "\\" || cstr(Mid(entpath.Get(), n)) == "/")
 						{
-							entpath = Left(entpath.Get(), t.n);
+							entpath = Left(entpath.Get(), n);
 							break;
 						}
 					}
@@ -3237,10 +3209,10 @@ int mapfile_savestandalone_stage2c ( void )
 					{
 						for (int l = 0; l < 4; l++)
 						{
-							if (l == 0) texture = t.entityelement[t.e].eleprof.WEMaterial.baseColorMapName[loop];
-							if (l == 1) texture = t.entityelement[t.e].eleprof.WEMaterial.normalMapName[loop];
-							if (l == 2) texture = t.entityelement[t.e].eleprof.WEMaterial.surfaceMapName[loop];
-							if (l == 3) texture = t.entityelement[t.e].eleprof.WEMaterial.emissiveMapName[loop];
+							if (l == 0) texture = t.entityelement[g_mapfile_iEntityElementIndex].eleprof.WEMaterial.baseColorMapName[loop];
+							if (l == 1) texture = t.entityelement[g_mapfile_iEntityElementIndex].eleprof.WEMaterial.normalMapName[loop];
+							if (l == 2) texture = t.entityelement[g_mapfile_iEntityElementIndex].eleprof.WEMaterial.surfaceMapName[loop];
+							if (l == 3) texture = t.entityelement[g_mapfile_iEntityElementIndex].eleprof.WEMaterial.emissiveMapName[loop];
 
 							if (texture.Len() > 0)
 							{
@@ -3282,7 +3254,7 @@ int mapfile_savestandalone_stage2c ( void )
 		}
 		iMoveAlong = 1;
 	}
-	t.e++;
+	g_mapfile_iEntityElementIndex++;
 	return iMoveAlong;
 }
 
@@ -3291,41 +3263,41 @@ void mapfile_savestandalone_stage2d ( void )
 	// decide if another level needs loading/processing
 	if ( t.levelindex < t.levelmax ) 
 	{
-		t.tlevelfile_s = "";
-		t.tlevelstoprocess = 0;
-		while ( t.levelindex < t.levelmax && strcmp ( t.tlevelfile_s.Get(), "" )==NULL ) 
+		g_mapfile_tlevelfile_s = "";
+		g_mapfile_tlevelstoprocess = 0;
+		while ( t.levelindex < t.levelmax && strcmp ( g_mapfile_tlevelfile_s.Get(), "" ) == 0 ) 
 		{
 			++t.levelindex;
-			t.ttrylevelfile_s=t.levellist_s[t.levelindex];
-			for ( t.n = 1; t.n <= t.levelindex-1; t.n++ )
+			cstr ttrylevelfile_s = t.levellist_s[t.levelindex];
+			for ( int n = 1; n <= t.levelindex-1; n++ )
 			{
-				if ( t.ttrylevelfile_s == t.levellist_s[t.n] ) 
+				if ( ttrylevelfile_s == t.levellist_s[n] ) 
 				{
-					t.ttrylevelfile_s = "";
+					ttrylevelfile_s = "";
 					break;
 				}
 			}
-			if ( t.ttrylevelfile_s != "" ) 
+			if ( ttrylevelfile_s != "" ) 
 			{
-				t.tlevelfile_s = t.ttrylevelfile_s;
-				t.tlevelstoprocess = 1;
+				g_mapfile_tlevelfile_s = ttrylevelfile_s;
+				g_mapfile_tlevelstoprocess = 1;
 			}
 		}
 	}
 	else
 	{
-		t.tlevelstoprocess = 0;
+		g_mapfile_tlevelstoprocess = 0;
 	}
 }
 
 void mapfile_savestandalone_stage2e ( void )
 {
 	//  if multi-level, do NOT include the levelbank\testmap temp files
-	t.tignorelevelbankfiles=0;
+	g_mapfile_tignorelevelbankfiles = 0;
 	if (  g.projectfilename_s != t.tmasterlevelfile_s ) 
 	{
 		timestampactivity(0,"Ignoring levelbank testmap folder for multilevel standalone");
-		t.tignorelevelbankfiles=1;
+		g_mapfile_tignorelevelbankfiles = 1;
 	}
 	else
 	{
@@ -3372,12 +3344,12 @@ void mapfile_savestandalone_stage3 ( void )
 	{
 		SetDir (  "gamesaves" );
 		ChecklistForFiles (  );
-		for ( t.c = 1 ; t.c<=  ChecklistQuantity(); t.c++ )
+		for ( int c = 1 ; c <= ChecklistQuantity(); c++ )
 		{
-			t.tfile_s=ChecklistString(t.c);
-			if (  Len(t.tfile_s.Get())>2 ) 
+			cstr tfile_s = ChecklistString(c);
+			if (  Len(tfile_s.Get()) > 2 ) 
 			{
-				if (  FileExist(t.tfile_s.Get()) == 1  )  DeleteAFile (  t.tfile_s.Get() );
+				if (  FileExist(tfile_s.Get()) == 1  )  DeleteAFile (  tfile_s.Get() );
 			}
 		}
 		SetDir (  ".." );
@@ -3388,14 +3360,14 @@ void mapfile_savestandalone_stage3 ( void )
 	{
 		SetDir("navbank");
 		ChecklistForFiles();
-		for (t.c = 1; t.c <= ChecklistQuantity(); t.c++)
+		for (int c = 1; c <= ChecklistQuantity(); c++)
 		{
-			t.tfile_s = ChecklistString(t.c);
-			if (Len(t.tfile_s.Get()) > 2)
+			cstr tfile_s = ChecklistString(c);
+			if (Len(tfile_s.Get()) > 2)
 			{
-				if (FileExist(t.tfile_s.Get()) == 1)
+				if (FileExist(tfile_s.Get()) == 1)
 				{
-					DeleteAFile(t.tfile_s.Get());
+					DeleteAFile(tfile_s.Get());
 				}
 			}
 		}
@@ -3406,9 +3378,9 @@ void mapfile_savestandalone_stage3 ( void )
 	createallfoldersincollection();
 
 	// If not copying levelbank files, must still create the folder
-	if ( t.tignorelevelbankfiles == 1 ) 
+	if ( g_mapfile_tignorelevelbankfiles == 1 ) 
 	{
-		t.olddir_s=GetDir();
+		cstr olddir_s = GetDir();
 		SetDir (  cstr(t.exepath_s+t.exename_s+"\\Files").Get() );
 		if (  PathExist("levelbank") == 0  )  MakeDirectory (  "levelbank" );
 		SetDir (  "levelbank" );
@@ -3416,57 +3388,57 @@ void mapfile_savestandalone_stage3 ( void )
 		SetDir (  "testmap" );
 		if (  PathExist("lightmaps") == 0  )  MakeDirectory (  "lightmaps" );
 		if (  PathExist("ttsfiles") == 0  )  MakeDirectory (  "ttsfiles" );
-		SetDir (  t.olddir_s.Get() );
+		SetDir (  olddir_s.Get() );
 	}
 
 	// If existing standalone there, ensure lightmaps are removed (as they will be unintentionally encrypted)
-	t.destpath_s=t.exepath_s+t.exename_s+"\\Files\\levelbank\\testmap\\lightmaps";
-	if (  PathExist(t.destpath_s.Get()) == 1 ) 
+	cstr destpath_s = t.exepath_s+t.exename_s+"\\Files\\levelbank\\testmap\\lightmaps";
+	if (  PathExist(destpath_s.Get()) == 1 ) 
 	{
-		t.olddir_s=GetDir();
-		SetDir (  t.destpath_s.Get() );
+		cstr olddir_s = GetDir();
+		SetDir (  destpath_s.Get() );
 		ChecklistForFiles (  );
-		for ( t.c = 1 ; t.c<=  ChecklistQuantity(); t.c++ )
+		for ( int c = 1 ; c <= ChecklistQuantity(); c++ )
 		{
-			t.tfile_s=ChecklistString(t.c);
-			if (  t.tfile_s != "." && t.tfile_s != ".." ) 
+			cstr tfile_s = ChecklistString(c);
+			if (  tfile_s != "." && tfile_s != ".." ) 
 			{
-				if (  FileExist(t.tfile_s.Get()) == 1  )  DeleteAFile (  t.tfile_s.Get() );
+				if (  FileExist(tfile_s.Get()) == 1  )  DeleteAFile (  tfile_s.Get() );
 			}
 		}
-		SetDir (  t.olddir_s.Get() );
+		SetDir (  olddir_s.Get() );
 	}
 
 	// If existing standalone there, ensure ttsfiles are removed
-	t.destpath_s=t.exepath_s+t.exename_s+"\\Files\\levelbank\\testmap\\ttsfiles";
-	if ( PathExist(t.destpath_s.Get()) == 1 ) 
+	destpath_s = t.exepath_s+t.exename_s+"\\Files\\levelbank\\testmap\\ttsfiles";
+	if ( PathExist(destpath_s.Get()) == 1 ) 
 	{
-		t.olddir_s=GetDir();
-		SetDir ( t.destpath_s.Get() );
+		cstr olddir_s = GetDir();
+		SetDir ( destpath_s.Get() );
 		ChecklistForFiles ( );
-		for ( t.c = 1 ; t.c <= ChecklistQuantity(); t.c++ )
+		for ( int c = 1 ; c <= ChecklistQuantity(); c++ )
 		{
-			t.tfile_s=ChecklistString(t.c);
-			if ( t.tfile_s != "." && t.tfile_s != ".." ) 
+			cstr tfile_s = ChecklistString(c);
+			if ( tfile_s != "." && tfile_s != ".." ) 
 			{
-				if ( FileExist(t.tfile_s.Get()) == 1  ) DeleteAFile ( t.tfile_s.Get() );
+				if ( FileExist(tfile_s.Get()) == 1  ) DeleteAFile ( tfile_s.Get() );
 			}
 		}
-		SetDir (  t.olddir_s.Get() );
+		SetDir (  olddir_s.Get() );
 	}
 
 	// 010917 - go through and remove any X files that have DBO counterparts
 	SetDir ( cstr(g.fpscrootdir_s+"\\Files\\").Get() );
-	for ( t.fileindex = 1 ; t.fileindex <= t.filesmax; t.fileindex++ )
+	for ( int fileindex = 1 ; fileindex <= g.filecollectionmax; fileindex++ )
 	{
-		t.src_s=t.filecollection_s[t.fileindex];
-		if ( FileExist(t.src_s.Get()) == 1 ) 
+		cstr src_s = t.filecollection_s[fileindex];
+		if ( FileExist(src_s.Get()) == 1 ) 
 		{
 			char pSrcFile[1024];
-			strcpy ( pSrcFile, t.filecollection_s[t.fileindex].Get() );
+			strcpy ( pSrcFile, src_s.Get() );
 			if ( strnicmp ( pSrcFile + strlen(pSrcFile) - 4, ".dbo", 4 ) == NULL )
 			{
-				cstr dboequiv = cstr(Left(pSrcFile,strlen(pSrcFile)-4))+".x";
+				cstr dboequiv = cstr(Left(pSrcFile, static_cast<int>(strlen(pSrcFile)) - 4)) + ".x";
 				if ( FileExist(dboequiv.Get()) == 1 ) 
 				{
 					// Found DBO, and an X file sitting alongside it, remove the X from consideration
@@ -3532,50 +3504,50 @@ void removeEmptyFolders(const std::string& directoryPath)
 void mapfile_savestandalone_stage4 ( void )
 {
 	// restore dir before proceeding
-	SetDir(t.told_s.Get());
+	SetDir(g_mapfile_told_s.Get());
 
 	//  CopyAFile (  collection to exe folder )
-	t.filesmax = g.filecollectionmax;
-	for ( t.fileindex = 1 ; t.fileindex <= t.filesmax; t.fileindex++ )
+	int filesmax = g.filecollectionmax;
+	for ( int fileindex = 1 ; fileindex <= filesmax; fileindex++ )
 	{
-		t.src_s=t.filecollection_s[t.fileindex];
+		cstr src_s = t.filecollection_s[fileindex];
 		char pRealSrc[MAX_PATH];
-		strcpy(pRealSrc, t.src_s.Get());
+		strcpy(pRealSrc, src_s.Get());
 		GG_GetRealPath(pRealSrc, 0);
 		if (FileExist(pRealSrc) == 1)
 		{
-			t.dest_s = t.exepath_s + t.exename_s + "\\Files\\" + t.src_s;
-			if (FileExist(t.dest_s.Get()) == 1) DeleteAFile(t.dest_s.Get());
-			CopyAFile(pRealSrc, t.dest_s.Get());
+			cstr dest_s = t.exepath_s + t.exename_s + "\\Files\\" + src_s;
+			if (FileExist(dest_s.Get()) == 1) DeleteAFile(dest_s.Get());
+			CopyAFile(pRealSrc, dest_s.Get());
 		}
 	}
 
 	//PE: Make sure needed folders exists.
-	t.dest_s = t.exepath_s + t.exename_s + "\\Files\\particlesbank";
-	if (PathExist(t.dest_s.Get()) == 0) MakeDirectory(t.dest_s.Get());
-	t.dest_s = t.exepath_s + t.exename_s + "\\Files\\particlesbank\\user";
-	if (PathExist(t.dest_s.Get()) == 0) MakeDirectory(t.dest_s.Get());
+	cstr particlesFolder = t.exepath_s + t.exename_s + "\\Files\\particlesbank";
+	if (PathExist(particlesFolder.Get()) == 0) MakeDirectory(particlesFolder.Get());
+	cstr particlesUserFolder = t.exepath_s + t.exename_s + "\\Files\\particlesbank\\user";
+	if (PathExist(particlesUserFolder.Get()) == 0) MakeDirectory(particlesUserFolder.Get());
 
 
 	//PE: Make sure we dont have a empty folder inside scriptbank.
 	//PE: We do have needed empty folder so cant just run it on everything like 'levelbank' ...
-	t.dest_s = t.exepath_s + t.exename_s + "\\Files\\scriptbank";
-	if (PathExist(t.dest_s.Get()))
+	cstr scriptbankFolder = t.exepath_s + t.exename_s + "\\Files\\scriptbank";
+	if (PathExist(scriptbankFolder.Get()))
 	{
 		//PE: Check if we have any empty folders here.
-		removeEmptyFolders(t.dest_s.Get());
+		removeEmptyFolders(scriptbankFolder.Get());
 	}
 
 	// switch to original root to copy exe files and dependencies
 	SetDir ( g.originalrootdir_s.Get() );
 
 	//  Copy game engine and rename it
-	t.dest_s=t.exepath_s+t.exename_s+"\\"+t.exename_s+".exe";
-	if ( FileExist(t.dest_s.Get()) == 1 ) DeleteAFile (  t.dest_s.Get() );
+	cstr exeDest_s = t.exepath_s + t.exename_s + "\\" + t.exename_s + ".exe";
+	if ( FileExist(exeDest_s.Get()) == 1 ) DeleteAFile (  exeDest_s.Get() );
 	if ( FileExist ( "GameGuruMAX.exe") == 1)
-		CopyAFile ( "GameGuruMAX.exe", t.dest_s.Get());
+		CopyAFile ( "GameGuruMAX.exe", exeDest_s.Get());
 	else
-		CopyAFile ( "Guru-MapEditor.exe", t.dest_s.Get() );
+		CopyAFile ( "Guru-MapEditor.exe", exeDest_s.Get() );
 
 	// and change the icon using project icons if exists
 	char projectico[MAX_PATH];
@@ -3589,56 +3561,56 @@ void mapfile_savestandalone_stage4 ( void )
 	if (FileExist(projectfinal_ico)==1)
 	{
 		void InjectIconToExe(char* icon, char* exe, int intresourcenumber);
-		InjectIconToExe(projectfinal_ico, t.dest_s.Get(), 1);
+		InjectIconToExe(projectfinal_ico, exeDest_s.Get(), 1);
 	}
 
 	// AssImp DLL tied to executable, may also need it for non-DBO model loading?!
 	char pCritDLLFilename[MAX_PATH];
 	strcpy(pCritDLLFilename, "assimp.dll");
-	t.dest_s = t.exepath_s + t.exename_s + "\\" + pCritDLLFilename;
-	if ( FileExist(t.dest_s.Get()) == 1 ) DeleteAFile ( t.dest_s.Get() );
-	CopyAFile ( pCritDLLFilename, t.dest_s.Get() );
+	cstr dllDest_s = t.exepath_s + t.exename_s + "\\" + pCritDLLFilename;
+	if ( FileExist(dllDest_s.Get()) == 1 ) DeleteAFile ( dllDest_s.Get() );
+	CopyAFile ( pCritDLLFilename, dllDest_s.Get() );
 
 	// Steam DLL now required for authentication step (not needed for standalone game running)
 	strcpy(pCritDLLFilename, "steam_api64.dll");
-	t.dest_s = t.exepath_s + t.exename_s + "\\" + pCritDLLFilename;
-	if (FileExist(t.dest_s.Get()) == 1) DeleteAFile (t.dest_s.Get());
-	CopyAFile (pCritDLLFilename, t.dest_s.Get());
+	dllDest_s = t.exepath_s + t.exename_s + "\\" + pCritDLLFilename;
+	if (FileExist(dllDest_s.Get()) == 1) DeleteAFile (dllDest_s.Get());
+	CopyAFile (pCritDLLFilename, dllDest_s.Get());
 
 	// EPIC DLL required for authentication step (not needed for standalone game running)
 	strcpy(pCritDLLFilename, "EOSSDK-Win64-Shipping.dll");
-	t.dest_s = t.exepath_s + t.exename_s + "\\" + pCritDLLFilename;
-	if (FileExist(t.dest_s.Get()) == 1) DeleteAFile (t.dest_s.Get());
-	CopyAFile (pCritDLLFilename, t.dest_s.Get());	
+	dllDest_s = t.exepath_s + t.exename_s + "\\" + pCritDLLFilename;
+	if (FileExist(dllDest_s.Get()) == 1) DeleteAFile (dllDest_s.Get());
+	CopyAFile (pCritDLLFilename, dllDest_s.Get());	
 
 	// Users report that people who don't have Max installed cannot play standalones
 	strcpy(pCritDLLFilename, "dxil.dll");
-	t.dest_s = t.exepath_s + t.exename_s + "\\" + pCritDLLFilename;
-	if (FileExist(t.dest_s.Get()) == 1) DeleteAFile(t.dest_s.Get());
-	CopyAFile(pCritDLLFilename, t.dest_s.Get());
+	dllDest_s = t.exepath_s + t.exename_s + "\\" + pCritDLLFilename;
+	if (FileExist(dllDest_s.Get()) == 1) DeleteAFile(dllDest_s.Get());
+	CopyAFile(pCritDLLFilename, dllDest_s.Get());
 	strcpy(pCritDLLFilename, "dxcompiler.dll");
-	t.dest_s = t.exepath_s + t.exename_s + "\\" + pCritDLLFilename;
-	if (FileExist(t.dest_s.Get()) == 1) DeleteAFile(t.dest_s.Get());
-	CopyAFile(pCritDLLFilename, t.dest_s.Get());
+	dllDest_s = t.exepath_s + t.exename_s + "\\" + pCritDLLFilename;
+	if (FileExist(dllDest_s.Get()) == 1) DeleteAFile(dllDest_s.Get());
+	CopyAFile(pCritDLLFilename, dllDest_s.Get());
 	strcpy(pCritDLLFilename, "d3dcompiler_47.dll");
-	t.dest_s = t.exepath_s + t.exename_s + "\\" + pCritDLLFilename;
-	if (FileExist(t.dest_s.Get()) == 1) DeleteAFile(t.dest_s.Get());
-	CopyAFile(pCritDLLFilename, t.dest_s.Get());
+	dllDest_s = t.exepath_s + t.exename_s + "\\" + pCritDLLFilename;
+	if (FileExist(dllDest_s.Get()) == 1) DeleteAFile(dllDest_s.Get());
+	CopyAFile(pCritDLLFilename, dllDest_s.Get());
 
 	// if exist, copy the OptickCore.dll so we can performance tune!
 	strcpy(pCritDLLFilename, "OptickCore.dll");
-	t.dest_s = t.exepath_s + t.exename_s + "\\" + pCritDLLFilename;
-	if (FileExist(pCritDLLFilename) == 1) CopyAFile(pCritDLLFilename, t.dest_s.Get());
+	dllDest_s = t.exepath_s + t.exename_s + "\\" + pCritDLLFilename;
+	if (FileExist(pCritDLLFilename) == 1) CopyAFile(pCritDLLFilename, dllDest_s.Get());
 
 	// if exist, copy the WinPixEventRuntime.dll so we can performance tune!
 	strcpy(pCritDLLFilename, "WinPixEventRuntime.dll");
-	t.dest_s = t.exepath_s + t.exename_s + "\\" + pCritDLLFilename;
-	if (FileExist(pCritDLLFilename) == 1) CopyAFile(pCritDLLFilename, t.dest_s.Get());
+	dllDest_s = t.exepath_s + t.exename_s + "\\" + pCritDLLFilename;
+	if (FileExist(pCritDLLFilename) == 1) CopyAFile(pCritDLLFilename, dllDest_s.Get());
 
 	// copy the version.ini file over (helps with crash triage system)
 	strcpy(pCritDLLFilename, "version.ini");
-	t.dest_s = t.exepath_s + t.exename_s + "\\" + pCritDLLFilename;
-	if (FileExist(pCritDLLFilename) == 1) CopyAFile(pCritDLLFilename, t.dest_s.Get());
+	dllDest_s = t.exepath_s + t.exename_s + "\\" + pCritDLLFilename;
+	if (FileExist(pCritDLLFilename) == 1) CopyAFile(pCritDLLFilename, dllDest_s.Get());
 
 	// for wicked, create fonts and shaders folder
 	cstr destExeRoot_s = t.exepath_s + t.exename_s;
@@ -3656,9 +3628,9 @@ void mapfile_savestandalone_stage4 ( void )
 		LPSTR pShaderFile = ChecklistString(c);
 		if (stricmp(pShaderFile, ".") != NULL && stricmp(pShaderFile, "..") != NULL)
 		{
-			t.dest_s = t.exepath_s + t.exename_s + "\\shaders\\" + pShaderFile;
-			if (FileExist(t.dest_s.Get()) == 1) DeleteAFile(t.dest_s.Get());
-			CopyAFile(pShaderFile, t.dest_s.Get());
+			cstr destShaderFile = t.exepath_s + t.exename_s + "\\shaders\\" + pShaderFile;
+			if (FileExist(destShaderFile.Get()) == 1) DeleteAFile(destShaderFile.Get());
+			CopyAFile(pShaderFile, destShaderFile.Get());
 		}
 	}
 
@@ -3677,228 +3649,226 @@ void mapfile_savestandalone_stage4 ( void )
 		SetDir (  g.fpscrootdir_s.Get() ); // odd this, but already set dir to root further up!
 		char pSrcVisFile[MAX_PATH];
 		strcpy(pSrcVisFile, "visuals.ini");
-		t.dest_s=t.exepath_s+t.exename_s+"\\visuals.ini";
+		cstr destVisFile = t.exepath_s + t.exename_s + "\\visuals.ini";
 
 		char pRealVisFile[MAX_PATH];
-		strcpy(pRealVisFile, t.dest_s.Get());
+		strcpy(pRealVisFile, destVisFile.Get());
 		GG_GetRealPath(pRealVisFile, 1);
-		t.dest_s = pRealVisFile;
+		destVisFile = pRealVisFile;
 		char pRealSrcVisFile[MAX_PATH];
 		strcpy(pRealSrcVisFile, pSrcVisFile);
 		GG_GetRealPath(pRealSrcVisFile, 1);
 		strcpy(pSrcVisFile, pRealSrcVisFile);
 
-		if ( FileExist(t.dest_s.Get()) == 1 ) DeleteAFile ( t.dest_s.Get() );
-		CopyAFile ( pSrcVisFile, t.dest_s.Get() );
+		if ( FileExist(destVisFile.Get()) == 1 ) DeleteAFile ( destVisFile.Get() );
+		CopyAFile ( pSrcVisFile, destVisFile.Get() );
 	}
 	t.visuals=t.editorvisuals  ; visuals_save ( );
 
 	//  Create a setup.ini file here reflecting game
-	Dim (  t.setuparr_s,999  );
-	t.setupfile_s=t.exepath_s+t.exename_s+"\\setup.ini" ; t.i=0;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "[GAMERUN]" ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "vsync="+Str(g.gvsync) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "superflatterrain="+Str(t.terrain.superflat) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "smoothcamerakeys="+Str(g.globals.smoothcamerakeys) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "occlusionmode="+Str(g.globals.occlusionmode) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "occlusionsize="+Str(g.globals.occlusionsize) ; ++t.i;
+	std::vector<cstr> setuparr_s;
+	setuparr_s.reserve(200);
+	cstr setupfile_s = t.exepath_s + t.exename_s + "\\setup.ini";
+	setuparr_s.push_back("[GAMERUN]");
+	setuparr_s.push_back(cstr("vsync=") + Str(g.gvsync));
+	setuparr_s.push_back(cstr("superflatterrain=") + Str(t.terrain.superflat));
+	setuparr_s.push_back(cstr("smoothcamerakeys=") + Str(g.globals.smoothcamerakeys));
+	setuparr_s.push_back(cstr("occlusionmode=") + Str(g.globals.occlusionmode));
+	setuparr_s.push_back(cstr("occlusionsize=") + Str(g.globals.occlusionsize));
 	if ( g.vrqcontrolmode != 0 )
 	{
-		t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "hidelowfpswarning=1" ; ++t.i;
+		setuparr_s.push_back("hidelowfpswarning=1");
 	}
 	else
 	{
-		t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "hidelowfpswarning="+Str(g.globals.hidelowfpswarning) ; ++t.i;
+		setuparr_s.push_back(cstr("hidelowfpswarning=") + Str(g.globals.hidelowfpswarning));
 	}
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "hardwareinfomode="+Str(g.ghardwareinfomode) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "fullscreen="+Str(g.gfullscreen) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "aspectratio="+Str(g.gaspectratio) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "dividetexturesize="+Str( g.gdividetexturesize ) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "producelogfiles=0"; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "adapterordinal="+Str( g.gadapterordinal ) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "adapterd3d11only="+Str( g.gadapterd3d11only ) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "hidedistantshadows=0"; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "invmouse="+Str( g.gminvert ) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "disablerightmousehold="+Str( g.gdisablerightmousehold ) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "profileinstandalone="+Str( 0 ) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "allowfragmentation="+Str( t.game.allowfragmentation ) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "pbroverride="+Str( g.gpbroverride ) ; ++t.i;
+	setuparr_s.push_back(cstr("hardwareinfomode=") + Str(g.ghardwareinfomode));
+	setuparr_s.push_back(cstr("fullscreen=") + Str(g.gfullscreen));
+	setuparr_s.push_back(cstr("aspectratio=") + Str(g.gaspectratio));
+	setuparr_s.push_back(cstr("dividetexturesize=") + Str(g.gdividetexturesize));
+	setuparr_s.push_back("producelogfiles=0");
+	setuparr_s.push_back(cstr("adapterordinal=") + Str(g.gadapterordinal));
+	setuparr_s.push_back(cstr("adapterd3d11only=") + Str(g.gadapterd3d11only));
+	setuparr_s.push_back("hidedistantshadows=0");
+	setuparr_s.push_back(cstr("invmouse=") + Str(g.gminvert));
+	setuparr_s.push_back(cstr("disablerightmousehold=") + Str(g.gdisablerightmousehold));
+	setuparr_s.push_back("profileinstandalone=0");
+	setuparr_s.push_back(cstr("allowfragmentation=") + Str(t.game.allowfragmentation));
+	setuparr_s.push_back(cstr("pbroverride=") + Str(g.gpbroverride));
 
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "memskipibr=" + Str(g.memskipibr); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "underwatermode=" + Str(g.underwatermode); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "usegrassbelowwater=" + Str(g.usegrassbelowwater); ++t.i;
+	setuparr_s.push_back(cstr("memskipibr=") + Str(g.memskipibr));
+	setuparr_s.push_back(cstr("underwatermode=") + Str(g.underwatermode));
+	setuparr_s.push_back(cstr("usegrassbelowwater=") + Str(g.usegrassbelowwater));
 
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "memskipwatermask=" + Str(g.memskipwatermask); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "lowestnearcamera=" + Str(g.lowestnearcamera); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "standalonefreememorybetweenlevels=" + Str(g.standalonefreememorybetweenlevels); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "videoprecacheframes=" + Str(g.videoprecacheframes); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "aidisabletreeobstacles=" + Str(g.aidisabletreeobstacles); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "aidisableobstacles=" + Str(g.aidisableobstacles); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "skipunusedtextures=" + Str(g.skipunusedtextures); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "videodelayedload=" + Str(g.videodelayedload); ++t.i;
+	setuparr_s.push_back(cstr("memskipwatermask=") + Str(g.memskipwatermask));
+	setuparr_s.push_back(cstr("lowestnearcamera=") + Str(g.lowestnearcamera));
+	setuparr_s.push_back(cstr("standalonefreememorybetweenlevels=") + Str(g.standalonefreememorybetweenlevels));
+	setuparr_s.push_back(cstr("videoprecacheframes=") + Str(g.videoprecacheframes));
+	setuparr_s.push_back(cstr("aidisabletreeobstacles=") + Str(g.aidisabletreeobstacles));
+	setuparr_s.push_back(cstr("aidisableobstacles=") + Str(g.aidisableobstacles));
+	setuparr_s.push_back(cstr("skipunusedtextures=") + Str(g.skipunusedtextures));
+	setuparr_s.push_back(cstr("videodelayedload=") + Str(g.videodelayedload));
 
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "maxtotalmeshlights=" + Str(g.maxtotalmeshlights); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "maxpixelmeshlights=" + Str(g.maxpixelmeshlights); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "terrainoldlight=" + Str(g.terrainoldlight); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "terrainusevertexlights=" + Str(g.terrainusevertexlights); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "maxterrainlights=" + Str(g.maxterrainlights); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "terrainlightfadedistance=" + Str(g.terrainlightfadedistance); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "showstaticlightinrealtime=" + Str(g.showstaticlightinrealtime); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "drawcalloptimizer=" + Str(g.globals.drawcalloptimizer); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "forcenowaterreflection=" + Str(g.globals.forcenowaterreflection); ++t.i;
-	
-	
+	setuparr_s.push_back(cstr("maxtotalmeshlights=") + Str(g.maxtotalmeshlights));
+	setuparr_s.push_back(cstr("maxpixelmeshlights=") + Str(g.maxpixelmeshlights));
+	setuparr_s.push_back(cstr("terrainoldlight=") + Str(g.terrainoldlight));
+	setuparr_s.push_back(cstr("terrainusevertexlights=") + Str(g.terrainusevertexlights));
+	setuparr_s.push_back(cstr("maxterrainlights=") + Str(g.maxterrainlights));
+	setuparr_s.push_back(cstr("terrainlightfadedistance=") + Str(g.terrainlightfadedistance));
+	setuparr_s.push_back(cstr("showstaticlightinrealtime=") + Str(g.showstaticlightinrealtime));
+	setuparr_s.push_back(cstr("drawcalloptimizer=") + Str(g.globals.drawcalloptimizer));
+	setuparr_s.push_back(cstr("forcenowaterreflection=") + Str(g.globals.forcenowaterreflection));
+
 	if ( t.DisableDynamicRes == false )
 	{
-		t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "disabledynamicres="+Str( 0 ) ; ++t.i;
+		setuparr_s.push_back("disabledynamicres=0");
 	}
 	else
 	{
-		t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "disabledynamicres="+Str( 1 ) ; ++t.i;
+		setuparr_s.push_back("disabledynamicres=1");
 	}
 
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "curvedistancescaler=" + Str(g.globals.CurveDistanceScaler); ++t.i;
+	setuparr_s.push_back(cstr("curvedistancescaler=") + Str(g.globals.CurveDistanceScaler));
 
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "realshadowdistance=" + Str(g.globals.realshadowdistancehigh); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "realshadowresolution="+Str(g.globals.realshadowresolution) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "realshadowcascadecount="+Str(g.globals.realshadowcascadecount) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "flashlightshadows=" + Str(g.globals.flashlightshadows); ++t.i;
+	setuparr_s.push_back(cstr("realshadowdistance=") + Str(g.globals.realshadowdistancehigh));
+	setuparr_s.push_back(cstr("realshadowresolution=") + Str(g.globals.realshadowresolution));
+	setuparr_s.push_back(cstr("realshadowcascadecount=") + Str(g.globals.realshadowcascadecount));
+	setuparr_s.push_back(cstr("flashlightshadows=") + Str(g.globals.flashlightshadows));
 	
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "realshadowcascade0="+Str(g.globals.realshadowcascade[0]) ; ++t.i;
+	setuparr_s.push_back(cstr("realshadowcascade0=") + Str(g.globals.realshadowcascade[0]));
 	if (g.globals.realshadowsize[0] > 0) {
-		t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "realshadowsize0=" + Str(g.globals.realshadowsize[0]); ++t.i;	
+		setuparr_s.push_back(cstr("realshadowsize0=") + Str(g.globals.realshadowsize[0]));
 	}
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "realshadowcascade1="+Str(g.globals.realshadowcascade[1]) ; ++t.i;
+	setuparr_s.push_back(cstr("realshadowcascade1=") + Str(g.globals.realshadowcascade[1]));
 	if (g.globals.realshadowsize[1] > 0) {
-		t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "realshadowsize1=" + Str(g.globals.realshadowsize[1]); ++t.i;
+		setuparr_s.push_back(cstr("realshadowsize1=") + Str(g.globals.realshadowsize[1]));
 	}
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "realshadowcascade2="+Str(g.globals.realshadowcascade[2]) ; ++t.i;
+	setuparr_s.push_back(cstr("realshadowcascade2=") + Str(g.globals.realshadowcascade[2]));
 	if (g.globals.realshadowsize[2] > 0) {
-		t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "realshadowsize2=" + Str(g.globals.realshadowsize[2]); ++t.i;
+		setuparr_s.push_back(cstr("realshadowsize2=") + Str(g.globals.realshadowsize[2]));
 	}
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "realshadowcascade3="+Str(g.globals.realshadowcascade[3]) ; ++t.i;
+	setuparr_s.push_back(cstr("realshadowcascade3=") + Str(g.globals.realshadowcascade[3]));
 	if (g.globals.realshadowsize[3] > 0) {
-		t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "realshadowsize3=" + Str(g.globals.realshadowsize[3]); ++t.i;
+		setuparr_s.push_back(cstr("realshadowsize3=") + Str(g.globals.realshadowsize[3]));
 	}
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "realshadowcascade4="+Str(g.globals.realshadowcascade[4]) ; ++t.i;
+	setuparr_s.push_back(cstr("realshadowcascade4=") + Str(g.globals.realshadowcascade[4]));
 	if (g.globals.realshadowsize[4] > 0) {
-		t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "realshadowsize4=" + Str(g.globals.realshadowsize[4]); ++t.i;
+		setuparr_s.push_back(cstr("realshadowsize4=") + Str(g.globals.realshadowsize[4]));
 	}
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "realshadowcascade5="+Str(g.globals.realshadowcascade[5]) ; ++t.i;
+	setuparr_s.push_back(cstr("realshadowcascade5=") + Str(g.globals.realshadowcascade[5]));
 	if (g.globals.realshadowsize[5] > 0) {
-		t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "realshadowsize5=" + Str(g.globals.realshadowsize[5]); ++t.i;
+		setuparr_s.push_back(cstr("realshadowsize5=") + Str(g.globals.realshadowsize[5]));
 	}
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "realshadowcascade6="+Str(g.globals.realshadowcascade[6]) ; ++t.i;
+	setuparr_s.push_back(cstr("realshadowcascade6=") + Str(g.globals.realshadowcascade[6]));
 	if (g.globals.realshadowsize[6] > 0) {
-		t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "realshadowsize6=" + Str(g.globals.realshadowsize[6]); ++t.i;
+		setuparr_s.push_back(cstr("realshadowsize6=") + Str(g.globals.realshadowsize[6]));
 	}
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "realshadowcascade7="+Str(g.globals.realshadowcascade[7]) ; ++t.i;
+	setuparr_s.push_back(cstr("realshadowcascade7=") + Str(g.globals.realshadowcascade[7]));
 	if (g.globals.realshadowsize[7] > 0) {
-		t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "realshadowsize7=" + Str(g.globals.realshadowsize[7]); ++t.i;
+		setuparr_s.push_back(cstr("realshadowsize7=") + Str(g.globals.realshadowsize[7]));
 	}
 
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "enableplrspeedmods=" + Str(g.globals.enableplrspeedmods); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "disableweaponjams=" + Str(g.globals.disableweaponjams); ++t.i;
+	setuparr_s.push_back(cstr("enableplrspeedmods=") + Str(g.globals.enableplrspeedmods));
+	setuparr_s.push_back(cstr("disableweaponjams=") + Str(g.globals.disableweaponjams));
 	//PE: Add new setup.ini functions.
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "ConvertToDDS=1"; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "ConvertToDDSMaxsize=2048"; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "uselodobjects=1"; ++t.i;
+	setuparr_s.push_back("ConvertToDDS=1");
+	setuparr_s.push_back("ConvertToDDSMaxsize=2048");
+	setuparr_s.push_back("uselodobjects=1");
 
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "" ; ++t.i;
+	setuparr_s.push_back("");
 
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "[GAMEMENUOPTIONS]" ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "graphicslowterrain="+g.graphicslowterrain_s; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "graphicslowentity="+g.graphicslowentity_s; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "graphicslowgrass="+g.graphicslowgrass_s; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "graphicsmediumterrain="+g.graphicsmediumterrain_s; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "graphicsmediumentity="+g.graphicsmediumentity_s; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "graphicsmediumgrass="+g.graphicsmediumgrass_s; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "graphicshighterrain="+g.graphicshighterrain_s; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "graphicshighentity="+g.graphicshighentity_s; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "graphicshighgrass="+g.graphicshighgrass_s; ++t.i;
+	setuparr_s.push_back("[GAMEMENUOPTIONS]");
+	setuparr_s.push_back(cstr("graphicslowterrain=") + g.graphicslowterrain_s);
+	setuparr_s.push_back(cstr("graphicslowentity=") + g.graphicslowentity_s);
+	setuparr_s.push_back(cstr("graphicslowgrass=") + g.graphicslowgrass_s);
+	setuparr_s.push_back(cstr("graphicsmediumterrain=") + g.graphicsmediumterrain_s);
+	setuparr_s.push_back(cstr("graphicsmediumentity=") + g.graphicsmediumentity_s);
+	setuparr_s.push_back(cstr("graphicsmediumgrass=") + g.graphicsmediumgrass_s);
+	setuparr_s.push_back(cstr("graphicshighterrain=") + g.graphicshighterrain_s);
+	setuparr_s.push_back(cstr("graphicshighentity=") + g.graphicshighentity_s);
+	setuparr_s.push_back(cstr("graphicshighgrass=") + g.graphicshighgrass_s);
 
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "" ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "[CUSTOMIZATIONS]" ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "switchtoalt="+Str(g.ggunaltswapkey1) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "melee key=" + Str(g.ggunmeleekey); ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "zoomholdbreath="+Str(g.gzoomholdbreath) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "keyUP="+Str(t.listkey[1]) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "keyDOWN="+Str(t.listkey[2]) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "keyLEFT="+Str(t.listkey[3]) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "keyRIGHT="+Str(t.listkey[4]) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "keyJUMP="+Str(t.listkey[5]) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "keyCROUCH="+Str(t.listkey[6]) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "keyENTER="+Str(t.listkey[7]) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "keyRELOAD="+Str(t.listkey[8]) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "keyPEEKLEFT="+Str(t.listkey[9]) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "keyPEEKRIGHT="+Str(t.listkey[10]) ; ++t.i;
-	t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "keyRUN="+Str(t.listkey[11]) ; ++t.i;
+	setuparr_s.push_back("");
+	setuparr_s.push_back("[CUSTOMIZATIONS]");
+	setuparr_s.push_back(cstr("switchtoalt=") + Str(g.ggunaltswapkey1));
+	setuparr_s.push_back(cstr("melee key=") + Str(g.ggunmeleekey));
+	setuparr_s.push_back(cstr("zoomholdbreath=") + Str(g.gzoomholdbreath));
+	setuparr_s.push_back(cstr("keyUP=") + Str(t.listkey[1]));
+	setuparr_s.push_back(cstr("keyDOWN=") + Str(t.listkey[2]));
+	setuparr_s.push_back(cstr("keyLEFT=") + Str(t.listkey[3]));
+	setuparr_s.push_back(cstr("keyRIGHT=") + Str(t.listkey[4]));
+	setuparr_s.push_back(cstr("keyJUMP=") + Str(t.listkey[5]));
+	setuparr_s.push_back(cstr("keyCROUCH=") + Str(t.listkey[6]));
+	setuparr_s.push_back(cstr("keyENTER=") + Str(t.listkey[7]));
+	setuparr_s.push_back(cstr("keyRELOAD=") + Str(t.listkey[8]));
+	setuparr_s.push_back(cstr("keyPEEKLEFT=") + Str(t.listkey[9]));
+	setuparr_s.push_back(cstr("keyPEEKRIGHT=") + Str(t.listkey[10]));
+	setuparr_s.push_back(cstr("keyRUN=") + Str(t.listkey[11]));
 
 	// vr extras
 	if ( g.vrqcontrolmode != 0 || g.gxbox != 0 )
 	{
 		// CONTROLLER
-		t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "" ; ++t.i;
-		t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "[CONTROLLER]" ; ++t.i;
+		setuparr_s.push_back("");
+		setuparr_s.push_back("[CONTROLLER]");
 		if ( g.vrqcontrolmode != 0 )
 		{
 			if ( g.vrqorggcontrolmode == 2 )
 			{
 				// No controller by default in EDU mode
-				t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "xbox=0"; ++t.i;
-				t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "xboxcontrollertype=2"; ++t.i;
-				t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "xboxinvert=0" ; ++t.i;
-				t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "xboxmag=100" ; ++t.i;
+				setuparr_s.push_back("xbox=0");
+				setuparr_s.push_back("xboxcontrollertype=2");
+				setuparr_s.push_back("xboxinvert=0");
+				setuparr_s.push_back("xboxmag=100");
 			}
 			else
 			{
 				//PE: Could not get standalone working , until i see xbox=1 , should it not be based on original setup.ini g.gxbox ?
-				t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "xbox=";+Str(g.gxbox); ++t.i;
-				t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "xboxcontrollertype=2"; ++t.i;
-				t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "xboxinvert=0" ; ++t.i;
-				t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "xboxmag=100" ; ++t.i;
+				setuparr_s.push_back(cstr("xbox=") + Str(g.gxbox));
+				setuparr_s.push_back("xboxcontrollertype=2");
+				setuparr_s.push_back("xboxinvert=0");
+				setuparr_s.push_back("xboxmag=100");
 			}
 		}
 		else
 		{
-			t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "xbox="+Str(g.gxbox); ++t.i;
-			t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "xboxcontrollertype="+Str(g.gxboxcontrollertype); ++t.i;
-			t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "xboxinvert="+Str(g.gxboxinvert) ; ++t.i;
-			t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "xboxmag="+Str(g.gxboxmag) ; ++t.i;
+			setuparr_s.push_back(cstr("xbox=") + Str(g.gxbox));
+			setuparr_s.push_back(cstr("xboxcontrollertype=") + Str(g.gxboxcontrollertype));
+			setuparr_s.push_back(cstr("xboxinvert=") + Str(g.gxboxinvert));
+			setuparr_s.push_back(cstr("xboxmag=") + Str(g.gxboxmag));
 		}
 	}
 
-	if (  FileExist(t.setupfile_s.Get()) == 1  )  DeleteAFile (  t.setupfile_s.Get() );
-	SaveArray (  t.setupfile_s.Get(),t.setuparr_s );
-	UnDim (  t.setuparr_s );
+	if (  FileExist(setupfile_s.Get()) == 1  )  DeleteAFile (  setupfile_s.Get() );
+	SaveArray (  setupfile_s.Get(), setuparr_s );
 
 	// separate VR setup file
 	extern bool g_bStandaloneVRMode;
 	if (g_bStandaloneVRMode == true)
 	{
-		Dim (t.setuparr_s, 999);
-		t.setupfile_s = t.exepath_s + t.exename_s + "\\setupvr.ini"; t.i = 0;
-		t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "[VR]"; ++t.i;
-		t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "vrmode=3"; ++t.i;
-		t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "vrmodemag=100"; ++t.i;
-		t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "vroffsetangx=" + Str(g.gvroffsetangx); ++t.i;
-		t.setuparr_s[t.i] = ""; t.setuparr_s[t.i] = t.setuparr_s[t.i] + "vrwmroffsetangx=" + Str(g.gvrwmroffsetangx); ++t.i;
-		if (FileExist(t.setupfile_s.Get()) == 1)  DeleteAFile (t.setupfile_s.Get());
-		SaveArray (t.setupfile_s.Get(), t.setuparr_s);
-		UnDim (t.setuparr_s);
+		std::vector<cstr> setupvr_s;
+		setupvr_s.reserve(10);
+		cstr setupvrfile_s = t.exepath_s + t.exename_s + "\\setupvr.ini";
+		setupvr_s.push_back("[VR]");
+		setupvr_s.push_back("vrmode=3");
+		setupvr_s.push_back("vrmodemag=100");
+		setupvr_s.push_back(cstr("vroffsetangx=") + Str(g.gvroffsetangx));
+		setupvr_s.push_back(cstr("vrwmroffsetangx=") + Str(g.gvrwmroffsetangx));
+		if (FileExist(setupvrfile_s.Get()) == 1)  DeleteAFile (setupvrfile_s.Get());
+		SaveArray (setupvrfile_s.Get(), setupvr_s);
 	}
 
 	//  Also save out the localisation ptr file
-	Dim (  t.setuparr_s,2  );
-	t.setupfile_s=t.exepath_s+t.exename_s+"\\userdetails.ini";
-	t.setuparr_s[0]="[LOCALIZATION]";
-	t.setuparr_s[1]=cstr("language=")+g.language_s;
-	SaveArray (  t.setupfile_s.Get(),t.setuparr_s );
-	UnDim (  t.setuparr_s );
+	std::vector<cstr> userdetails_s(2);
+	cstr userdetailsfile_s = t.exepath_s + t.exename_s + "\\userdetails.ini";
+	userdetails_s[0] = "[LOCALIZATION]";
+	userdetails_s[1] = cstr("language=") + g.language_s;
+	SaveArray ( userdetailsfile_s.Get(), userdetails_s );
 
 	//  Itinery of all files in standalone
-	t.titineryfile_s=t.exepath_s+t.exename_s+"\\contents.txt";
-	SaveArray (  t.titineryfile_s.Get(),t.filecollection_s );
+	cstr itineraryfile_s = t.exepath_s + t.exename_s + "\\contents.txt";
+	SaveArray ( itineraryfile_s.Get(), t.filecollection_s );
 
 	//  cleanup file array
 	UnDim (  t.filecollection_s );
@@ -3985,18 +3955,18 @@ void mapfile_savestandalone_finish ( void )
 	g_bMakingAStandaloneUsingFileCollectionArray = false;
 
 	// encrypt media
-	t.dest_s=t.exepath_s+t.exename_s;
+	cstr dest_s = t.exepath_s + t.exename_s;
 	if ( g.gexportassets == 0 ) 
 	{
-		if ( PathExist( cstr(t.dest_s + "\\Files").Get() ) ) 
+		if ( PathExist( cstr(dest_s + "\\Files").Get() ) ) 
 		{
 			//  NOTE; Need to exclude lightmaps from encryptor  set encrypt ignore list "lightmaps"
-			EncryptAllFiles ( cstr(t.dest_s + "\\Files").Get() );
+			EncryptAllFiles ( cstr(dest_s + "\\Files").Get() );
 		}
 	}
 
 	//  if not tignorelevelbankfiles, copy unencrypted files
-	if (  t.tignorelevelbankfiles == 0 ) 
+	if (  g_mapfile_tignorelevelbankfiles == 0 ) 
 	{
 		//  now copy the files we do not want to encrypt
 		g.filecollectionmax = 0;
@@ -4004,49 +3974,49 @@ void mapfile_savestandalone_finish ( void )
 
 		//  lightmap DBOs
 		SetDir (  cstr(g.fpscrootdir_s+"\\Files\\").Get() );
-		t.tfurthestobjnumber=g.lightmappedobjectoffset;
-		for ( t.tobj = g.lightmappedobjectoffset; t.tobj<= g.lightmappedobjectoffset+99999 ; t.tobj+= 100 )
+		int tfurthestobjnumber = g.lightmappedobjectoffset;
+		for ( int tobj = g.lightmappedobjectoffset; tobj <= g.lightmappedobjectoffset+99999 ; tobj += 100 )
 		{
-			t.tname_s = ""; t.tname_s = t.tname_s + "levelbank\\testmap\\lightmaps\\"+"object"+Str(t.tobj)+".dbo";
-			if (  FileExist(t.tname_s.Get()) == 1  )  t.tfurthestobjnumber = t.tobj+100;
+			cstr tname_s = cstr("levelbank\\testmap\\lightmaps\\object") + Str(tobj) + ".dbo";
+			if (  FileExist(tname_s.Get()) == 1  )  tfurthestobjnumber = tobj+100;
 		}
-		for ( t.tobj = g.lightmappedobjectoffset; t.tobj <= t.tfurthestobjnumber; t.tobj++ )
+		for ( int tobj = g.lightmappedobjectoffset; tobj <= tfurthestobjnumber; tobj++ )
 		{
-			t.tname_s = ""; t.tname_s = t.tname_s + "levelbank\\testmap\\lightmaps\\"+"object"+Str(t.tobj)+".dbo";
-			if (  FileExist(t.tname_s.Get()) == 1  )  addtocollection(t.tname_s.Get());
+			cstr tname_s = cstr("levelbank\\testmap\\lightmaps\\object") + Str(tobj) + ".dbo";
+			if (  FileExist(tname_s.Get()) == 1  )  addtocollection(tname_s.Get());
 		}
-		for ( t.tobj = g.lightmappedobjectoffset; t.tobj<= g.lightmappedobjectoffsetfinish; t.tobj++ )
+		for ( int tobj = g.lightmappedobjectoffset; tobj <= g.lightmappedobjectoffsetfinish; tobj++ )
 		{
-			t.tname_s = ""; t.tname_s = t.tname_s + "levelbank\\testmap\\lightmaps\\"+"object"+Str(t.tobj)+".dbo";
-			if (  FileExist(t.tname_s.Get()) == 1  )  addtocollection(t.tname_s.Get());
+			cstr tname_s = cstr("levelbank\\testmap\\lightmaps\\object") + Str(tobj) + ".dbo";
+			if (  FileExist(tname_s.Get()) == 1  )  addtocollection(tname_s.Get());
 		}
-		t.nmax=500;
-		for ( t.n = 0 ; t.n<=  5000 ; t.n+= 100 )
+		int nmax = 500;
+		for ( int n = 0 ; n <= 5000 ; n += 100 )
 		{
-			t.tfile_s=cstr("levelbank\\testmap\\lightmaps\\")+Str(t.n)+".dds";
-			if (  FileExist(t.tfile_s.Get()) == 1  )  t.nmax = t.n+100;
+			cstr tfile_s = cstr("levelbank\\testmap\\lightmaps\\") + Str(n) + ".dds";
+			if (  FileExist(tfile_s.Get()) == 1  )  nmax = n + 100;
 		}
-		for ( t.n = 0 ; t.n<=  t.nmax; t.n++ )
+		for ( int n = 0 ; n <= nmax; n++ )
 		{
-			t.tfile_s=cstr("levelbank\\testmap\\lightmaps\\")+Str(t.n)+".dds";
-			if (  FileExist(t.tfile_s.Get()) == 1  )  addtocollection(t.tfile_s.Get());
+			cstr tfile_s = cstr("levelbank\\testmap\\lightmaps\\") + Str(n) + ".dds";
+			if (  FileExist(tfile_s.Get()) == 1  )  addtocollection(tfile_s.Get());
 		}
-		t.tfile_s="levelbank\\testmap\\lightmaps\\objectlist.dat" ; addtocollection(t.tfile_s.Get());
-		t.tfile_s="levelbank\\testmap\\lightmaps\\objectnummax.dat" ; addtocollection(t.tfile_s.Get());
+		addtocollection("levelbank\\testmap\\lightmaps\\objectlist.dat");
+		addtocollection("levelbank\\testmap\\lightmaps\\objectnummax.dat");
 
 		//  Copy the 'unencrypted files' collection to exe folder
-		timestampactivity(0, cstr(cstr("filecollectionmax=")+Str(g.filecollectionmax)).Get() );
+		timestampactivity(0, cstr(cstr("filecollectionmax=") + Str(g.filecollectionmax)).Get() );
 		SetDir ( cstr(t.exepath_s+t.exename_s+"\\Files\\levelbank\\testmap").Get() );
 		if (  PathExist("lightmaps") == 0  )  MakeDirectory (  "lightmaps" );
 		SetDir (  cstr(g.fpscrootdir_s+"\\Files\\").Get() );
-		for ( t.fileindex = 1 ; t.fileindex <= g.filecollectionmax; t.fileindex++ )
+		for ( int fileindex = 1 ; fileindex <= g.filecollectionmax; fileindex++ )
 		{
-			t.src_s=t.filecollection_s[t.fileindex];
-			if (  FileExist(t.src_s.Get()) == 1 ) 
+			cstr src_s = t.filecollection_s[fileindex];
+			if (  FileExist(src_s.Get()) == 1 ) 
 			{
-				t.dest_s=t.exepath_s+t.exename_s+"\\Files\\"+t.src_s;
-				if (  FileExist(t.dest_s.Get()) == 1  )  DeleteAFile (  t.dest_s.Get() );
-				CopyAFile (  t.src_s.Get(),t.dest_s.Get() );
+				cstr fileDest_s = t.exepath_s + t.exename_s + "\\Files\\" + src_s;
+				if (  FileExist(fileDest_s.Get()) == 1  )  DeleteAFile (  fileDest_s.Get() );
+				CopyAFile (  src_s.Get(), fileDest_s.Get() );
 			}
 		}
 	}
@@ -4058,7 +4028,7 @@ void mapfile_savestandalone_finish ( void )
 void mapfile_savestandalone_restoreandclose ( void )
 {
 	// Restore directory
-	SetDir ( t.told_s.Get() );
+	SetDir ( g_mapfile_told_s.Get() );
 
 	// restore original level FPM files
 	timestampactivity(0, cstr(cstr("check '")+g.projectfilename_s+"' vs '"+t.tmasterlevelfile_s+"'").Get() );
@@ -4080,196 +4050,220 @@ void mapfile_savestandalone_restoreandclose ( void )
 	g_bMakingAStandaloneUsingFileCollectionArray = false;
 }
 
-void scanscriptfileandaddtocollection ( char* tfile_s , char *pPath)
+void scanscriptfileandaddtocollection ( const char* tfile_s , const char *pPath)
 {
-	cstr tscriptname_s =  "";
-	cstr tlinethis_s =  "";
-	int lookforlen = 0;
-	cstr lookfor_s =  "";
-	int lookforlen2 = 0;
-	cstr lookfor2_s = "";
-	cstr lookfor3_s = "";
-	cstr tline_s =  "";
-	int l = 0;
-	int c = 0;
-	int tt = 0;
-	std::vector <cstr> scriptpage_s; //Allow us to run recursively
-	Dim (  scriptpage_s,10000  );
-	if (  FileExist(tfile_s) == 1 ) 
+	if (!tfile_s || !*tfile_s) return;
+	if (FileExist(const_cast<char*>(tfile_s)) != 1) return;
+
+	FILE* fp = GG_fopen(tfile_s, "r");
+	if (!fp) return;
+
+	char lineBuf[2048];
+	while (fgets(lineBuf, sizeof(lineBuf), fp))
 	{
-		LoadArray (  tfile_s,scriptpage_s );
-
-		lookfor_s=Lower("Include(") ; lookforlen=Len(lookfor_s.Get());
-		lookfor2_s = Lower("require \""); lookforlen2 = Len(lookfor2_s.Get());
-		lookfor3_s = Lower("Include (");
-
-		for ( l = 0 ; l < scriptpage_s.size() ; l++ )
+		size_t lineLen = strlen(lineBuf);
+		while (lineLen > 0 && (lineBuf[lineLen - 1] == '\r' || lineBuf[lineLen - 1] == '\n'))
 		{
-			tline_s=Lower(scriptpage_s[l].Get());
+			lineBuf[--lineLen] = '\0';
+		}
+		if (lineLen < 5) continue;
 
-			for (c = 0; c <= Len(tline_s.Get()) - lookforlen2 - 1; c++)
+		char* pCur = lineBuf;
+		while (*pCur == ' ' || *pCur == '\t') pCur++;
+		if (pCur[0] == '-' && pCur[1] == '-') continue; // Line-level Lua comment
+
+		// Check if line contains an inline comment "--"
+		const char* pComment = strstr(pCur, "--");
+
+		const char* pScan = pCur;
+		while (*pScan)
+		{
+			// Find "require" or "include" case-insensitively
+			const char* pReq = pestrcasestr(pScan, "require");
+			const char* pInc = pestrcasestr(pScan, "include");
+
+			const char* pFound = nullptr;
+			size_t kwLen = 0;
+
+			if (pReq && pInc)
 			{
-				tlinethis_s = Right(tline_s.Get(), Len(tline_s.Get()) - c);
+				if (pReq <= pInc) { pFound = pReq; kwLen = 7; }
+				else { pFound = pInc; kwLen = 7; }
+			}
+			else if (pReq)
+			{
+				pFound = pReq;
+				kwLen = 7;
+			}
+			else if (pInc)
+			{
+				pFound = pInc;
+				kwLen = 7;
+			}
+			else
+			{
+				break;
+			}
 
-				// ignore commented out lines
-				if (cstr(Left(tlinethis_s.Get(), 2)) == "--") break;
+			// If keyword is inside an inline comment, stop scanning this line
+			if (pComment && pFound >= pComment)
+			{
+				break;
+			}
 
-				if (cstr(Left(tlinethis_s.Get(), lookforlen2)) == lookfor2_s.Get() || cstr(Left(tlinethis_s.Get(), lookforlen2)) == lookfor3_s.Get())
+			// Check word boundary before keyword
+			if (pFound > lineBuf)
+			{
+				char prevCh = *(pFound - 1);
+				if (isalnum((unsigned char)prevCh) || prevCh == '_')
 				{
-					//  found script has included ANOTHER script
-					// skip spaces and quotes 
-					int i = lookforlen2 + 1;
-
-					while (i < Len(tlinethis_s.Get()) &&
-						(cstr(Mid(tlinethis_s.Get(), i)) == " " ||
-							cstr(Mid(tlinethis_s.Get(), i)) == "\""))
-					{
-						i++;
-					};
-
-					// if couldn't find the script name skip this line
-					if (i == Len(tlinethis_s.Get())) break;
-
-					tscriptname_s = Right(tline_s.Get(), Len(tline_s.Get()) - c - i + 1);
-
-					for (int il = Len(tscriptname_s.Get()); il > 0; il--) {
-						if (cstr(Mid(tscriptname_s.Get(), il)) == "\"") {
-							tscriptname_s = Left(tscriptname_s.Get(), il-1);
-							break;
-						}
-					}
-
-					std::string script_name = tscriptname_s.Get();
-					replaceAll(script_name, "\\\\", "\\");
-					replaceAll(script_name, "scriptbank\\", "");
-					tscriptname_s = script_name.c_str();
-
-					if( !pestrcasestr(tscriptname_s.Get(),".lua"))
-						tscriptname_s += ".lua";
-
-					for (tt = Len(tscriptname_s.Get()); tt >= 4; tt += -1)
-					{
-						if (cstr(Mid(tscriptname_s.Get(), tt - 0)) == "a" && cstr(Mid(tscriptname_s.Get(), tt - 1)) == "u" && cstr(Mid(tscriptname_s.Get(), tt - 2)) == "l" && cstr(Mid(tscriptname_s.Get(), tt - 3)) == ".")
-						{
-							break;
-						}
-					}
-					tscriptname_s = Left(tscriptname_s.Get(), tt);
-
-					if (addtocollection(cstr(cstr("scriptbank\\") + tscriptname_s).Get()) == true) 
-					{
-						//Newly added , also scan this entry.
-						if (pPath)
-						{
-							scanscriptfileandaddtocollection(cstr(cstr(pPath)+cstr("scriptbank\\") + tscriptname_s).Get(), pPath);
-						}
-						else
-						{
-							scanscriptfileandaddtocollection(cstr(cstr("scriptbank\\") + tscriptname_s).Get());
-						}
-					}
+					pScan = pFound + kwLen;
+					continue;
 				}
 			}
 
-			for ( c = 0 ; c<=  Len(tline_s.Get())-lookforlen-1; c++ )
+			const char* pAfterKw = pFound + kwLen;
+			// Skip whitespace
+			while (*pAfterKw == ' ' || *pAfterKw == '\t') pAfterKw++;
+
+			// Optional opening parenthesis '('
+			if (*pAfterKw == '(')
 			{
-				tlinethis_s=Right(tline_s.Get(),Len(tline_s.Get())-c);
+				pAfterKw++;
+				while (*pAfterKw == ' ' || *pAfterKw == '\t') pAfterKw++;
+			}
 
-				// ignore commented out lines
-				if ( cstr( Left( tlinethis_s.Get(), 2 )) == "--" ) break;
+			// Must be opening quote '\"' or '\''
+			if (*pAfterKw != '\"' && *pAfterKw != '\'')
+			{
+				pScan = pFound + kwLen;
+				continue;
+			}
 
-				if (  cstr( Left( tlinethis_s.Get(), lookforlen )) == lookfor_s.Get() )
+			char quoteChar = *pAfterKw;
+			pAfterKw++; // move past quote
+
+			const char* pNameStart = pAfterKw;
+			const char* pNameEnd = pNameStart;
+			while (*pNameEnd && *pNameEnd != quoteChar)
+			{
+				pNameEnd++;
+			}
+
+			if (pNameEnd > pNameStart && *pNameEnd == quoteChar)
+			{
+				std::string script_name(pNameStart, pNameEnd - pNameStart);
+				replaceAll(script_name, "\\\\", "\\");
+				replaceAll(script_name, "/", "\\");
+
+				// Strip redundant leading scriptbank\ if present
+				if (strnicmp(script_name.c_str(), "scriptbank\\", 11) == 0)
 				{
-					//  found script has included ANOTHER script
-					// skip spaces and quotes 
-					int i = lookforlen + 1;
+					script_name = script_name.substr(11);
+				}
 
-					while ( i < Len( tlinethis_s.Get() ) &&
-						   ( cstr( Mid( tlinethis_s.Get(), i )) == " " ||
-						     cstr( Mid( tlinethis_s.Get(), i )) == "\"" ) ) 
-					{
-						i++;
-					};
-			
-					// if couldn't find the script name skip this line
-					if (i == Len(tlinethis_s.Get())) break;
+				if (!pestrcasestr(script_name.c_str(), ".lua"))
+				{
+					script_name += ".lua";
+				}
 
-					tscriptname_s=Right(tline_s.Get(),Len(tline_s.Get())-c-i+1);
-					for (tt = Len(tscriptname_s.Get()); tt >= 4; tt += -1)
+				size_t luaPos = script_name.rfind(".lua");
+				if (luaPos != std::string::npos)
+				{
+					script_name = script_name.substr(0, luaPos + 4);
+				}
+
+				std::string collectionScript;
+				if (strnicmp(script_name.c_str(), "titlesbank\\", 11) == 0)
+				{
+					collectionScript = script_name;
+				}
+				else
+				{
+					collectionScript = std::string("scriptbank\\") + script_name;
+				}
+
+				if (addtocollection(collectionScript.c_str()))
+				{
+					if (pPath && *pPath)
 					{
-						if (cstr(Mid(tscriptname_s.Get(), tt - 0)) == "a" && cstr(Mid(tscriptname_s.Get(), tt - 1)) == "u" && cstr(Mid(tscriptname_s.Get(), tt - 2)) == "l" && cstr(Mid(tscriptname_s.Get(), tt - 3)) == ".")
-						{
-							break;
-						}
+						std::string subScript = std::string(pPath) + collectionScript;
+						scanscriptfileandaddtocollection(subScript.c_str(), pPath);
 					}
-					tscriptname_s = Left(tscriptname_s.Get(), tt);
-
-					if (addtocollection(cstr(cstr("scriptbank\\") + tscriptname_s).Get()) == true) 
+					else
 					{
-						//Newly added , also scan this entry.
-						if (pPath)
-						{
-							scanscriptfileandaddtocollection(cstr(cstr(pPath) + cstr("scriptbank\\") + tscriptname_s).Get(), pPath);
-						}
-						scanscriptfileandaddtocollection(cstr(cstr("scriptbank\\") + tscriptname_s).Get());
+						scanscriptfileandaddtocollection(collectionScript.c_str());
 					}
 				}
+
+				pScan = pNameEnd + 1;
+			}
+			else
+			{
+				pScan = pFound + kwLen;
 			}
 		}
 	}
-	UnDim (  scriptpage_s );
+	fclose(fp);
 }
 
-bool addtocollection ( char* file_s )
+bool addtocollection ( const char* file_s )
 {
-	int tarrsize = 0;
-	int tfound = 0;
-	int f = 0;
-	file_s=Lower(file_s);
-	//  Ensure this entry is not already present
-	tfound=0;
-	for ( f = 1 ; f<=  g.filecollectionmax; f++ )
+	if (!file_s || !*file_s) return false;
+	std::string lowerFile = file_s;
+	for (char& ch : lowerFile) ch = (char)tolower((unsigned char)ch);
+
+	// Ensure this entry is not already present
+	for (int f = 1; f <= g.filecollectionmax; f++)
 	{
-		if (  t.filecollection_s[f] == cstr(file_s)  )  tfound = 1;
+		if (t.filecollection_s[f] == lowerFile.c_str())
+			return false;
 	}
-	if (  tfound == 0 ) 
+
+	// Expand file collection array if nearly full
+	++g.filecollectionmax;
+	int tarrsize = ArrayCount(t.filecollection_s);
+	if (g.filecollectionmax > tarrsize - 10)
 	{
-		//  Expand file collection array if nearly full
-		++g.filecollectionmax;
-		tarrsize=ArrayCount(t.filecollection_s);
-		if (  g.filecollectionmax>tarrsize-10 ) 
+		Dim(t.filecollection_s, tarrsize + 50);
+	}
+	t.filecollection_s[g.filecollectionmax] = lowerFile.c_str();
+	return true;
+}
+
+void removefromcollection ( const char* file_s )
+{
+	if (!file_s || !*file_s) return;
+	std::string lowerFile = file_s;
+	for (char& ch : lowerFile) ch = (char)tolower((unsigned char)ch);
+
+	int tfound = 0;
+	for (int f = 1; f <= g.filecollectionmax; f++)
+	{
+		if (t.filecollection_s[f] == lowerFile.c_str())
 		{
-			Dim (  t.filecollection_s,tarrsize+50  );
-		}
-		t.filecollection_s[g.filecollectionmax]=file_s;
-		return true;
-	}
-	return false;
-}
-
-void removefromcollection ( char* file_s )
-{
-	int tfound = 0;
-	file_s=Lower(file_s);
-	for ( int f = 1 ; f <= g.filecollectionmax; f++ )
-		if ( t.filecollection_s[f] == cstr(file_s)  )  
 			tfound = f;
-	if ( tfound > 0 ) 
+			break;
+		}
+	}
+	if (tfound > 0)
 	{
-		// remove from consideration
 		t.filecollection_s[tfound] = "";
 	}
 }
 
-void removeanymatchingfromcollection ( char* folderorfile_s )
+void removeanymatchingfromcollection ( const char* folderorfile_s )
 {
-	int tfound = 0;
-	folderorfile_s = Lower(folderorfile_s);
-	for ( int f = 1; f <= g.filecollectionmax; f++ )
+	if (!folderorfile_s || !*folderorfile_s) return;
+	std::string lowerPrefix = folderorfile_s;
+	for (char& ch : lowerPrefix) ch = (char)tolower((unsigned char)ch);
+	size_t prefixLen = lowerPrefix.length();
+
+	for (int f = 1; f <= g.filecollectionmax; f++)
 	{
-		if ( strnicmp ( t.filecollection_s[f].Get(), folderorfile_s, strlen(folderorfile_s) ) == NULL )
+		const char* pFile = t.filecollection_s[f].Get();
+		if (pFile && _strnicmp(pFile, lowerPrefix.c_str(), prefixLen) == 0)
 		{
-			// remove from consideration
 			t.filecollection_s[f] = "";
 		}
 	}
@@ -4277,484 +4271,366 @@ void removeanymatchingfromcollection ( char* folderorfile_s )
 
 bool g_bNormalOperations = true;
 
-void addfoldertocollection ( char* path_s )
+void addfoldertocollection ( const char* path_s )
 {
-	cstr tfile_s =  "";
-	cstr told_s =  "";
-	cstr usePath = path_s;
-	int c = 0;
-	told_s = GetDir();
+	if (!path_s || !*path_s) return;
+	std::string usePath = path_s;
+	std::string told_s = GetDir() ? GetDir() : "";
 
-	//PE: Some docwrite folders have additional files that need to go into standalone.
 	bool bAddAdditionalFilesFromDocWrite = false;
 	if (pestrcasestr(path_s, "gamecore\\decals"))
 		bAddAdditionalFilesFromDocWrite = true;
 	if (pestrcasestr(path_s, "gamecore\\hands\\Animations"))
 		bAddAdditionalFilesFromDocWrite = true;
 
-	//PE: In wicked also check if folder is inside docwrite.
-	if (!PathExist(usePath.Get()))
+	if (!PathExist(const_cast<char*>(usePath.c_str())))
 	{
-		if (g_bNormalOperations == true)
+		if (g_bNormalOperations)
 		{
 			extern char szWriteDir[MAX_PATH];
-			cstr testPath = cstr(szWriteDir) + "Files\\" + path_s;// usePath;
-			if (PathExist(testPath.Get()))
+			std::string testPath = std::string(szWriteDir) + "Files\\" + path_s;
+			if (PathExist(const_cast<char*>(testPath.c_str())))
 			{
 				usePath = testPath;
 			}
 		}
 	}
-	if ( PathExist (usePath.Get()) )
+	if (PathExist(const_cast<char*>(usePath.c_str())))
 	{
-		SetDir (usePath.Get());
-		ChecklistForFiles (  );
+		SetDir(const_cast<char*>(usePath.c_str()));
+		ChecklistForFiles();
 		if (ChecklistQuantity() <= 2)
 		{
-			// Try writable folder instead (sometimes, there will be an empty user folder in the max install, which causes this process to ignore the writable user folder!)
-			if (g_bNormalOperations == true)
+			if (g_bNormalOperations)
 			{
 				extern char szWriteDir[MAX_PATH];
-				cstr testPath = cstr(szWriteDir) + "Files\\" + path_s;// usePath;
-				SetDir(told_s.Get());
-				if (PathExist(testPath.Get()))
+				std::string testPath = std::string(szWriteDir) + "Files\\" + path_s;
+				SetDir(const_cast<char*>(told_s.c_str()));
+				if (PathExist(const_cast<char*>(testPath.c_str())))
 				{
-					SetDir(testPath.Get());
+					SetDir(const_cast<char*>(testPath.c_str()));
 					ChecklistForFiles();
 				}
 			}
 		}
-		for ( c = 1 ; c<=  ChecklistQuantity(); c++ )
+		for (int c = 1; c <= ChecklistQuantity(); c++)
 		{
-			if (  ChecklistValueA(c) == 0 ) 
+			if (ChecklistValueA(c) == 0)
 			{
-				tfile_s=ChecklistString(c);
-				if (  tfile_s != "." && tfile_s != ".." ) 
+				const char* pFile = ChecklistString(c);
+				if (pFile && strcmp(pFile, ".") != 0 && strcmp(pFile, "..") != 0)
 				{
-					//PE: Still adding using the relative path path_s
-					addtocollection( cstr(cstr(path_s)+"\\"+tfile_s).Get() );
+					std::string relFile = std::string(path_s) + "\\" + pFile;
+					addtocollection(relFile.c_str());
 				}
 			}
 		}
-		SetDir (  told_s.Get() );
+		SetDir(const_cast<char*>(told_s.c_str()));
 	}
 	else
 	{
-		//timestampactivity(0, cstr(cstr("Tried adding path that does not exist: ") + path_s).Get());
 		char pDebugPath[10240];
-		sprintf(pDebugPath, "Tried adding path '%s' that does not exist here: %s", path_s, usePath.Get());
+		snprintf(pDebugPath, sizeof(pDebugPath), "Tried adding path '%s' that does not exist here: %s", path_s, usePath.c_str());
 		timestampactivity(0, pDebugPath);
 	}
 
-	//PE: Add additional files from docwrite folder.
-	if(bAddAdditionalFilesFromDocWrite)
+	if (bAddAdditionalFilesFromDocWrite && g_bNormalOperations)
 	{
-		if (g_bNormalOperations == true)
+		extern char szWriteDir[MAX_PATH];
+		std::string testPath = std::string(szWriteDir) + "Files\\" + path_s;
+		if (PathExist(const_cast<char*>(testPath.c_str())))
 		{
-			extern char szWriteDir[MAX_PATH];
-			cstr testPath = cstr(szWriteDir) + "Files\\" + path_s;// usePath;
-			if (PathExist(testPath.Get()))
+			usePath = testPath;
+			SetDir(const_cast<char*>(usePath.c_str()));
+			ChecklistForFiles();
+			for (int c = 1; c <= ChecklistQuantity(); c++)
 			{
-				usePath = testPath;
-				SetDir(usePath.Get());
-				ChecklistForFiles();
-				for (c = 1; c <= ChecklistQuantity(); c++)
+				if (ChecklistValueA(c) == 0)
 				{
-					if (ChecklistValueA(c) == 0)
+					const char* pFile = ChecklistString(c);
+					if (pFile && strcmp(pFile, ".") != 0 && strcmp(pFile, "..") != 0)
 					{
-						tfile_s = ChecklistString(c);
-						if (tfile_s != "." && tfile_s != "..")
-						{
-							//PE: Still adding using the relative path path_s
-							addtocollection(cstr(cstr(path_s) + "\\" + tfile_s).Get());
-						}
+						std::string relFile = std::string(path_s) + "\\" + pFile;
+						addtocollection(relFile.c_str());
 					}
 				}
-				SetDir(told_s.Get());
 			}
+			SetDir(const_cast<char*>(told_s.c_str()));
 		}
 	}
 }
 
-void addallinfoldertocollection ( cstr subThisFolder_s, cstr subFolder_s )
+void addallinfoldertocollection ( const char* subThisFolder_s, const char* subFolder_s )
 {
-	// could be nesteds folder path passed in
-	cstr olddir = "";
-	if (subThisFolder_s.Len() > 0)
+	std::string thisFolder = subThisFolder_s ? subThisFolder_s : "";
+	std::string folder = subFolder_s ? subFolder_s : "";
+	std::string olddir = "";
+	if (!thisFolder.empty())
 	{
-		olddir = GetDir();
-		SetDir (subThisFolder_s.Get());
+		olddir = GetDir() ? GetDir() : "";
+		SetDir(const_cast<char*>(thisFolder.c_str()));
 	}
 
-	// first scan and record all files and folders - store folders locally
 	ChecklistForFiles();
 	int iFoldersCount = ChecklistQuantity();
-	cstr* pFolders = new cstr[iFoldersCount+1];
-	for ( int c = 1; c <= iFoldersCount; c++ )
+	std::vector<std::string> folders(iFoldersCount + 1);
+	for (int c = 1; c <= iFoldersCount; c++)
 	{
-		pFolders[c] = "";
-		LPSTR pFileFolderName = ChecklistString(c);
-		if ( strcmp ( pFileFolderName, "." ) != NULL && strcmp ( pFileFolderName, ".." ) !=NULL )
+		const char* pFileFolderName = ChecklistString(c);
+		if (pFileFolderName && strcmp(pFileFolderName, ".") != 0 && strcmp(pFileFolderName, "..") != 0)
 		{
-			if ( ChecklistValueA(c) == 1 )
+			if (ChecklistValueA(c) == 1)
 			{
-				pFolders[c] = pFileFolderName;
+				folders[c] = pFileFolderName;
 			}
 			else
 			{
-				cstr relativeFilePath_s = subFolder_s + "\\"; // subFolder_s always populated with the first folder of the recursive traverse
-				relativeFilePath_s += pFileFolderName;
-				addtocollection ( relativeFilePath_s.Get() );
+				std::string relativeFilePath_s = folder + "\\" + pFileFolderName;
+				addtocollection(relativeFilePath_s.c_str());
 			}
 		}
 	}
 
-	// now use local folder list and investigate each one
-	for ( int f = 1; f <= iFoldersCount; f++ )
+	for (int f = 1; f <= iFoldersCount; f++)
 	{
-		cstr pFolderName = pFolders[f];
-		if ( pFolderName.Len() > 0 )
+		if (!folders[f].empty())
 		{
-			cstr relativeFolderPath_s = subFolder_s;
-			if (strlen(subFolder_s.Get()) > 0) relativeFolderPath_s += "\\";
-			relativeFolderPath_s += pFolderName;
-			addallinfoldertocollection ( pFolderName, relativeFolderPath_s );
+			std::string relativeFolderPath_s = folder;
+			if (!folder.empty()) relativeFolderPath_s += "\\";
+			relativeFolderPath_s += folders[f];
+			addallinfoldertocollection(folders[f].c_str(), relativeFolderPath_s.c_str());
 		}
 	}
 
-	// back out of folder (could be nesteds folder path passed in)
-	if (olddir.Len() > 0)
+	if (!olddir.empty())
 	{
-		SetDir(olddir.Get());
+		SetDir(const_cast<char*>(olddir.c_str()));
 	}
-
-	// finally free resources
-	delete[] pFolders;
 }
 
 void createallfoldersincollection ( void )
 {
-	cstr pOldDir = GetDir();
-	t.strwork = ""; t.strwork = t.strwork + "Create full path structure ("+Str(t.filesmax)+") for standalone executable";
-	timestampactivity(0, t.strwork.Get() );
-	t.filesmax = g.filecollectionmax;
-	for ( t.fileindex = 1 ; t.fileindex <= t.filesmax; t.fileindex++ )
+	std::string pOldDir = GetDir() ? GetDir() : "";
+	int filesmax = g.filecollectionmax;
+	char szMsg[256];
+	snprintf(szMsg, sizeof(szMsg), "Create full path structure (%d) for standalone executable", filesmax);
+	timestampactivity(0, szMsg);
+
+	for (int fileindex = 1; fileindex <= filesmax; fileindex++)
 	{
-		t.olddir_s=GetDir();
-		t.src_s=t.filecollection_s[t.fileindex];
-		t.srcstring_s = t.src_s;
-		while (Len(t.srcstring_s.Get()) > 0)
+		const char* pSrc = t.filecollection_s[fileindex].Get();
+		if (!pSrc || !*pSrc) continue;
+
+		std::string olddir_s = GetDir() ? GetDir() : "";
+		std::string srcstring_s = pSrc;
+
+		while (!srcstring_s.empty())
 		{
-			for (t.c = 1; t.c <= Len(t.srcstring_s.Get()); t.c++)
+			size_t found = srcstring_s.find_first_of("/\\");
+			if (found == std::string::npos) break;
+
+			std::string chunk_s = srcstring_s.substr(0, found);
+			if (!chunk_s.empty())
 			{
-				if (cstr(Mid(t.srcstring_s.Get(), t.c)) == "\\" || cstr(Mid(t.srcstring_s.Get(), t.c)) == "/")
+				if (PathExist(const_cast<char*>(chunk_s.c_str())) == 0)
+					MakeDirectory(const_cast<char*>(chunk_s.c_str()));
+				if (PathExist(const_cast<char*>(chunk_s.c_str())) == 0)
 				{
-					t.chunk_s = Left(t.srcstring_s.Get(), t.c - 1);
-					if (Len(t.chunk_s.Get()) > 0)
-					{
-						if (PathExist(t.chunk_s.Get()) == 0)  MakeDirectory(t.chunk_s.Get());
-						if (PathExist(t.chunk_s.Get()) == 0)
-						{
-							timestampactivity(0, cstr(cstr("Path:") + t.src_s).Get());
-							timestampactivity(0, cstr(cstr("Unable to create folder:'") + t.chunk_s + "' [error code " + Mid(t.srcstring_s.Get(), t.c) + ":" + Str(t.c) + ":" + Str(Len(t.srcstring_s.Get())) + "]").Get());
-						}
-						if (PathExist(t.chunk_s.Get()) == 1)
-						{
-							// sometimes an absolute path can be inserted into path sequence (i.e lee\fred\d;\blob\doug)
-							SetDir(t.chunk_s.Get());
-						}
-					}
-					t.srcstring_s = Right(t.srcstring_s.Get(), Len(t.srcstring_s.Get()) - t.c);
-					t.c = 1; // start from beginning as string has been cropped
-					break;
+					char szPathLog[1024];
+					snprintf(szPathLog, sizeof(szPathLog), "Path:%s", pSrc);
+					timestampactivity(0, szPathLog);
+					char szErr[512];
+					snprintf(szErr, sizeof(szErr), "Unable to create folder:'%s'", chunk_s.c_str());
+					timestampactivity(0, szErr);
+				}
+				else
+				{
+					SetDir(const_cast<char*>(chunk_s.c_str()));
 				}
 			}
-			if (t.c > Len(t.srcstring_s.Get())) break;
+			srcstring_s = srcstring_s.substr(found + 1);
 		}
 
-		SetDir ( t.olddir_s.Get() );
+		SetDir(const_cast<char*>(olddir_s.c_str()));
 	}
-	SetDir ( pOldDir.Get() );
+	SetDir(const_cast<char*>(pOldDir.c_str()));
 }
 
-void findalltexturesinmodelfile ( char* inputfile_s, char* folder_s, char* texpath_s )
+void findalltexturesinmodelfile ( const char* inputfile_s, const char* folder_s, const char* texpath_s )
 {
-	cstr returntexfile_s =  "";
-	int tfoundpiccy = 0;
-	cstr texfile_s =  "";
-	int filesize = 0;
-	int mbi = 0;
-	int a = 0;
-	int b = 0;
-	int c = 0;
-	int d = 0;
+	if (!inputfile_s || !*inputfile_s) return;
+	std::string folderStr = folder_s ? folder_s : "";
+	std::string texpathStr = texpath_s ? texpath_s : "";
 
-	// do two passes, second one if there is an accompanying DBO (which has unscrambled data to find texture names)
-	for ( int iPass = 0; iPass < 2; iPass++ )
+	for (int iPass = 0; iPass < 2; iPass++)
 	{
-		// filename to attempt a scan of
-		cstr filestr = inputfile_s;
+		std::string filestr = inputfile_s;
 		if (iPass == 1)
 		{
-			LPSTR pFilename = filestr.Get();
-			if (stricmp (pFilename + strlen(pFilename) - 2, ".x") == NULL)
+			size_t len = filestr.length();
+			if (len >= 2 && _stricmp(filestr.c_str() + len - 2, ".x") == 0)
 			{
-				filestr = cstr(Left(pFilename, strlen(pFilename) - 2)) + ".dbo";
+				filestr = filestr.substr(0, len - 2) + ".dbo";
 			}
 		}
-		char* file_s = filestr.Get();
 
-		// To determine if a model file requires texture files, we scan the file for a
-		// match to the Text ( .TGA or .JPG (and use texfile$) )
-		returntexfile_s="";
-		if (FileExist(file_s) == 1)
+		if (FileExist(const_cast<char*>(filestr.c_str())) == 1)
 		{
-			filesize = FileSize(file_s);
-			mbi = 255;
-			OpenToRead (11, file_s);
+			int filesize = FileSize(const_cast<char*>(filestr.c_str()));
+			int mbi = 255;
+			OpenToRead(11, const_cast<char*>(filestr.c_str()));
 			if (FileOpen(11) == 1)
 			{
 				MakeMemblockFromFile(mbi, 11);
 				CloseFile(11);
-				for (b = 0; b <= filesize - 4; b++)
+				for (int b = 0; b <= filesize - 4; b++)
 				{
 					if (ReadMemblockByte(mbi, b + 0) == Asc("."))
 					{
-						tfoundpiccy = 0;
-						if (ReadMemblockByte(mbi, b + 1) == Asc("T") || ReadMemblockByte(mbi, b + 1) == Asc("t"))
-						{
-							if (ReadMemblockByte(mbi, b + 2) == Asc("G") || ReadMemblockByte(mbi, b + 2) == Asc("g"))
-							{
-								if (ReadMemblockByte(mbi, b + 3) == Asc("A") || ReadMemblockByte(mbi, b + 3) == Asc("a"))
-								{
-									tfoundpiccy = 1;
-								}
-							}
-						}
-						if (ReadMemblockByte(mbi, b + 1) == Asc("J") || ReadMemblockByte(mbi, b + 1) == Asc("j"))
-						{
-							if (ReadMemblockByte(mbi, b + 2) == Asc("P") || ReadMemblockByte(mbi, b + 2) == Asc("p"))
-							{
-								if (ReadMemblockByte(mbi, b + 3) == Asc("G") || ReadMemblockByte(mbi, b + 3) == Asc("g"))
-								{
-									tfoundpiccy = 1;
-								}
-							}
-						}
-						if (ReadMemblockByte(mbi, b + 1) == Asc("D") || ReadMemblockByte(mbi, b + 1) == Asc("d"))
-						{
-							if (ReadMemblockByte(mbi, b + 2) == Asc("D") || ReadMemblockByte(mbi, b + 2) == Asc("d"))
-							{
-								if (ReadMemblockByte(mbi, b + 3) == Asc("S") || ReadMemblockByte(mbi, b + 3) == Asc("s"))
-								{
-									tfoundpiccy = 1;
-								}
-							}
-						}
-						if (ReadMemblockByte(mbi, b + 1) == Asc("B") || ReadMemblockByte(mbi, b + 1) == Asc("b"))
-						{
-							if (ReadMemblockByte(mbi, b + 2) == Asc("M") || ReadMemblockByte(mbi, b + 2) == Asc("m"))
-							{
-								if (ReadMemblockByte(mbi, b + 3) == Asc("P") || ReadMemblockByte(mbi, b + 3) == Asc("p"))
-								{
-									tfoundpiccy = 1;
-								}
-							}
-						}
-						if (ReadMemblockByte(mbi, b + 1) == Asc("P") || ReadMemblockByte(mbi, b + 1) == Asc("p"))
-						{
-							if (ReadMemblockByte(mbi, b + 2) == Asc("N") || ReadMemblockByte(mbi, b + 2) == Asc("n"))
-							{
-								if (ReadMemblockByte(mbi, b + 3) == Asc("G") || ReadMemblockByte(mbi, b + 3) == Asc("g"))
-								{
-									tfoundpiccy = 1;
-								}
-							}
-						}
-						//PE: mainly from the building pack they are recorded as psd.
-						if (ReadMemblockByte(mbi, b + 1) == Asc("P") || ReadMemblockByte(mbi, b + 1) == Asc("p"))
-						{
-							if (ReadMemblockByte(mbi, b + 2) == Asc("S") || ReadMemblockByte(mbi, b + 2) == Asc("s"))
-							{
-								if (ReadMemblockByte(mbi, b + 3) == Asc("D") || ReadMemblockByte(mbi, b + 3) == Asc("d"))
-								{
-									tfoundpiccy = 1;
-								}
-							}
-						}
+						int tfoundpiccy = 0;
+						uint8_t b1 = ReadMemblockByte(mbi, b + 1);
+						uint8_t b2 = ReadMemblockByte(mbi, b + 2);
+						uint8_t b3 = ReadMemblockByte(mbi, b + 3);
+
+						if ((b1 == 'T' || b1 == 't') && (b2 == 'G' || b2 == 'g') && (b3 == 'A' || b3 == 'a')) tfoundpiccy = 1;
+						else if ((b1 == 'J' || b1 == 'j') && (b2 == 'P' || b2 == 'p') && (b3 == 'G' || b3 == 'g')) tfoundpiccy = 1;
+						else if ((b1 == 'D' || b1 == 'd') && (b2 == 'D' || b2 == 'd') && (b3 == 'S' || b3 == 's')) tfoundpiccy = 1;
+						else if ((b1 == 'B' || b1 == 'b') && (b2 == 'M' || b2 == 'm') && (b3 == 'P' || b3 == 'p')) tfoundpiccy = 1;
+						else if ((b1 == 'P' || b1 == 'p') && (b2 == 'N' || b2 == 'n') && (b3 == 'G' || b3 == 'g')) tfoundpiccy = 1;
+						else if ((b1 == 'P' || b1 == 'p') && (b2 == 'S' || b2 == 's') && (b3 == 'D' || b3 == 'd')) tfoundpiccy = 1;
+
 						if (tfoundpiccy == 1)
 						{
-							//  track back
-							for (c = b; c >= b - 255; c += -1)
+							int c = b;
+							for (; c >= b - 255 && c >= 0; c--)
 							{
-								if (ReadMemblockByte(mbi, c) >= Asc(" ") && ReadMemblockByte(mbi, c) <= Asc("z") && ReadMemblockByte(mbi, c) != 34)
+								uint8_t byteVal = ReadMemblockByte(mbi, c);
+								if (byteVal < ' ' || byteVal > 'z' || byteVal == '"')
 								{
-									//  part of filename
-								}
-								else
-								{
-									//  no more filename
 									break;
 								}
 							}
-							texfile_s = "";
-							for (d = c + 1; d <= b + 3; d++)
+							std::string texfile_s;
+							texfile_s.reserve((b + 3) - c);
+							for (int d = c + 1; d <= b + 3; d++)
 							{
-								texfile_s = texfile_s + Chr(ReadMemblockByte(mbi, d));
+								texfile_s += (char)tolower((unsigned char)ReadMemblockByte(mbi, d));
 							}
-							texfile_s = Lower(texfile_s.Get());
 
-							LPSTR pTextFilePtr = texfile_s.Get();
-							if (strlen(pTextFilePtr) > 4)
+							if (texfile_s.length() > 4)
 							{
-								// scan for telltail abs path
-								bool bUsesAbsPath = false;
-								for (int nn = 0; nn < strlen(pTextFilePtr); nn++)
+								size_t colonPos = texfile_s.find(':');
+								if (colonPos != std::string::npos)
 								{
-									if (pTextFilePtr[nn] == ':')
+									size_t lastSlash = texfile_s.find_last_of("/\\");
+									if (lastSlash != std::string::npos)
 									{
-										// this texture filename uses an absolutely path
-										bUsesAbsPath = true;
-										break;
-									}
-								}
-								if (bUsesAbsPath == true )
-								{
-									// truncate to JUST the texture filename, remove all path (depend on folder_s)!
-									for (int nnn = strlen(pTextFilePtr)-1; nnn > 0; nnn--)
-									{
-										if (pTextFilePtr[nnn] == '\\' || pTextFilePtr[nnn] == '/')
-										{
-											texfile_s = pTextFilePtr + nnn + 1;
-											break;
-										}
+										texfile_s = texfile_s.substr(lastSlash + 1);
 									}
 								}
 							}
 
-							if (strnicmp(texfile_s.Get(), "effectbank\\", 11) == NULL)
+							if (_strnicmp(texfile_s.c_str(), "effectbank\\", 11) == 0)
 							{
-								addtocollection(texfile_s.Get());
+								addtocollection(texfile_s.c_str());
 							}
 							else
 							{
-								// detect PBR texture set
 								bool bDetectedPBRTextureSetName = false;
-								cstr texfilenoext_s = cstr(Left(texfile_s.Get(), Len(texfile_s.Get()) - 4));
-								if (strnicmp(texfilenoext_s.Get() + strlen(texfilenoext_s.Get()) - 6, "_color", 6) == NULL) { texfilenoext_s = Left(texfilenoext_s.Get(), strlen(texfilenoext_s.Get()) - 6); bDetectedPBRTextureSetName = true; }
-								if (strnicmp(texfilenoext_s.Get() + strlen(texfilenoext_s.Get()) - 7, "_normal", 7) == NULL) { texfilenoext_s = Left(texfilenoext_s.Get(), strlen(texfilenoext_s.Get()) - 7); bDetectedPBRTextureSetName = true; }
-								if (strnicmp(texfilenoext_s.Get() + strlen(texfilenoext_s.Get()) - 10, "_metalness", 10) == NULL) { texfilenoext_s = Left(texfilenoext_s.Get(), strlen(texfilenoext_s.Get()) - 10); bDetectedPBRTextureSetName = true; }
-								if (strnicmp(texfilenoext_s.Get() + strlen(texfilenoext_s.Get()) - 10, "_roughness", 10) == NULL) { texfilenoext_s = Left(texfilenoext_s.Get(), strlen(texfilenoext_s.Get()) - 10); bDetectedPBRTextureSetName = true; }
-								if (strnicmp(texfilenoext_s.Get() + strlen(texfilenoext_s.Get()) - 6, "_gloss", 6) == NULL) { texfilenoext_s = Left(texfilenoext_s.Get(), strlen(texfilenoext_s.Get()) - 6); bDetectedPBRTextureSetName = true; }
-								if (strnicmp(texfilenoext_s.Get() + strlen(texfilenoext_s.Get()) - 3, "_ao", 3) == NULL) { texfilenoext_s = Left(texfilenoext_s.Get(), strlen(texfilenoext_s.Get()) - 3); bDetectedPBRTextureSetName = true; }
-							
-								if (strnicmp(texfilenoext_s.Get() + strlen(texfilenoext_s.Get()) - 3, "_surface", 3) == NULL) { texfilenoext_s = Left(texfilenoext_s.Get(), strlen(texfilenoext_s.Get()) - 3); bDetectedPBRTextureSetName = true; }
-					
-								if (bDetectedPBRTextureSetName == true)
-								{
-									//PE: Need to check filename only and current object folder.
-									bool tex_found = false;
-									int pos = 0;
-									for (pos = texfilenoext_s.Len(); pos > 0; pos--) 
+								std::string texfilenoext_s = (texfile_s.length() >= 4) ? texfile_s.substr(0, texfile_s.length() - 4) : texfile_s;
+								size_t noextLen = texfilenoext_s.length();
+
+								auto checkSuffix = [&](const char* suffix, size_t suflen) -> bool {
+									if (noextLen >= suflen && _strnicmp(texfilenoext_s.c_str() + noextLen - suflen, suffix, suflen) == 0)
 									{
-										if (cstr(Mid(texfilenoext_s.Get(), pos)) == "\\" || cstr(Mid(texfilenoext_s.Get(), pos)) == "/")
-											break;
+										texfilenoext_s = texfilenoext_s.substr(0, noextLen - suflen);
+										bDetectedPBRTextureSetName = true;
+										return true;
 									}
-									if (pos > 0) 
+									return false;
+								};
+
+								checkSuffix("_color", 6) || checkSuffix("_normal", 7) || checkSuffix("_metalness", 10) ||
+								checkSuffix("_roughness", 10) || checkSuffix("_gloss", 6) || checkSuffix("_ao", 3) ||
+								checkSuffix("_surface", 8);
+
+								if (bDetectedPBRTextureSetName)
+								{
+									bool tex_found = false;
+									size_t slashPos = texfilenoext_s.find_last_of("/\\");
+									if (slashPos != std::string::npos)
 									{
-										cstr directfile = Right(texfilenoext_s.Get(), texfilenoext_s.Len() - pos);
-										cstr tmp = cstr(cstr(folder_s) + directfile + "_color.dds").Get();
-										if (FileExist(tmp.Get())) 
+										std::string directfile = texfilenoext_s.substr(slashPos + 1);
+										std::string tmp = folderStr + directfile + "_color.dds";
+										if (FileExist(const_cast<char*>(tmp.c_str())))
 										{
-											addtocollection(tmp.Get());
-											tmp = cstr(cstr(folder_s) + directfile + "_normal.dds").Get();
-											addtocollection(tmp.Get());
-											tmp = cstr(cstr(folder_s) + directfile + "_metalness.dds").Get();
-											addtocollection(tmp.Get());
-											tmp = cstr(cstr(folder_s) + directfile + "_gloss.dds").Get();
-											addtocollection(tmp.Get());
-											tmp = cstr(cstr(folder_s) + directfile + "_ao.dds").Get();
-											addtocollection(tmp.Get());
-											tmp = cstr(cstr(folder_s) + directfile + "_illumination.dds").Get();
-											addtocollection(tmp.Get());
-									
-											tmp = cstr(cstr(folder_s) + directfile + "_surface.dds").Get();
-											addtocollection(tmp.Get());
-									
+											addtocollection(tmp.c_str());
+											addtocollection((folderStr + directfile + "_normal.dds").c_str());
+											addtocollection((folderStr + directfile + "_metalness.dds").c_str());
+											addtocollection((folderStr + directfile + "_gloss.dds").c_str());
+											addtocollection((folderStr + directfile + "_ao.dds").c_str());
+											addtocollection((folderStr + directfile + "_illumination.dds").c_str());
+											addtocollection((folderStr + directfile + "_surface.dds").c_str());
 											tex_found = true;
 										}
-										tmp = cstr(cstr(folder_s) + directfile + "_color.png").Get();
-										if (FileExist(tmp.Get())) 
+										tmp = folderStr + directfile + "_color.png";
+										if (FileExist(const_cast<char*>(tmp.c_str())))
 										{
-											addtocollection(tmp.Get());
-											tmp = cstr(cstr(folder_s) + directfile + "_normal.png").Get();
-											addtocollection(tmp.Get());
-											tmp = cstr(cstr(folder_s) + directfile + "_metalness.png").Get();
-											addtocollection(tmp.Get());
-											tmp = cstr(cstr(folder_s) + directfile + "_gloss.png").Get();
-											addtocollection(tmp.Get());
-											tmp = cstr(cstr(folder_s) + directfile + "_ao.png").Get();
-											addtocollection(tmp.Get());
-											tmp = cstr(cstr(folder_s) + directfile + "_illumination.png").Get();
-											addtocollection(tmp.Get());
-									
-											//PE: surface still .dds
-											tmp = cstr(cstr(folder_s) + directfile + "_surface.dds").Get();
-											addtocollection(tmp.Get());
-										
+											addtocollection(tmp.c_str());
+											addtocollection((folderStr + directfile + "_normal.png").c_str());
+											addtocollection((folderStr + directfile + "_metalness.png").c_str());
+											addtocollection((folderStr + directfile + "_gloss.png").c_str());
+											addtocollection((folderStr + directfile + "_ao.png").c_str());
+											addtocollection((folderStr + directfile + "_illumination.png").c_str());
+											addtocollection((folderStr + directfile + "_surface.dds").c_str());
 											tex_found = true;
 										}
 									}
 
-									//PE: We get some strange folder created in the standalone from here.
-									// add other PBR textures just in case not detected in model data
 									if (!tex_found)
 									{
-										cstr texfileColor_s = texfilenoext_s + "_color.dds";
-										//Only if the src is exists.
-										if (FileExist(cstr(cstr(folder_s) + texpath_s + texfileColor_s).Get()) || FileExist(cstr(cstr(folder_s) + texfileColor_s).Get())) 
+										std::string texfileColor_s = texfilenoext_s + "_color.dds";
+										if (FileExist(const_cast<char*>((folderStr + texpathStr + texfileColor_s).c_str())) || FileExist(const_cast<char*>((folderStr + texfileColor_s).c_str())))
 										{
-											addtocollection(cstr(cstr(folder_s) + texpath_s + texfileColor_s).Get());
-											addtocollection(cstr(cstr(folder_s) + texfileColor_s).Get());
-											cstr texfileNormal_s = texfilenoext_s + "_normal.dds";
-											addtocollection(cstr(cstr(folder_s) + texpath_s + texfileNormal_s).Get());
-											addtocollection(cstr(cstr(folder_s) + texfileNormal_s).Get());
-											cstr texfileMetalness_s = texfilenoext_s + "_metalness.dds";
-											addtocollection(cstr(cstr(folder_s) + texpath_s + texfileMetalness_s).Get());
-											addtocollection(cstr(cstr(folder_s) + texfileMetalness_s).Get());
-											cstr texfileGloss_s = texfilenoext_s + "_gloss.dds";
-											addtocollection(cstr(cstr(folder_s) + texpath_s + texfileGloss_s).Get());
-											addtocollection(cstr(cstr(folder_s) + texfileGloss_s).Get());
-											cstr texfileAO_s = texfilenoext_s + "_ao.dds";
-											addtocollection(cstr(cstr(folder_s) + texpath_s + texfileAO_s).Get());
-											addtocollection(cstr(cstr(folder_s) + texfileAO_s).Get());
-											cstr texfileIllumination_s = texfilenoext_s + "_illumination.dds";
-											addtocollection(cstr(cstr(folder_s) + texpath_s + texfileIllumination_s).Get());
-											addtocollection(cstr(cstr(folder_s) + texfileIllumination_s).Get());
-										
-											cstr texfilesurface_s = texfilenoext_s + "_surface.dds";
-											addtocollection(cstr(cstr(folder_s) + texpath_s + texfilesurface_s).Get());
-											addtocollection(cstr(cstr(folder_s) + texfilesurface_s).Get());
-									
+											addtocollection((folderStr + texpathStr + texfileColor_s).c_str());
+											addtocollection((folderStr + texfileColor_s).c_str());
+											std::string texfileNormal_s = texfilenoext_s + "_normal.dds";
+											addtocollection((folderStr + texpathStr + texfileNormal_s).c_str());
+											addtocollection((folderStr + texfileNormal_s).c_str());
+											std::string texfileMetalness_s = texfilenoext_s + "_metalness.dds";
+											addtocollection((folderStr + texpathStr + texfileMetalness_s).c_str());
+											addtocollection((folderStr + texfileMetalness_s).c_str());
+											std::string texfileGloss_s = texfilenoext_s + "_gloss.dds";
+											addtocollection((folderStr + texpathStr + texfileGloss_s).c_str());
+											addtocollection((folderStr + texfileGloss_s).c_str());
+											std::string texfileAO_s = texfilenoext_s + "_ao.dds";
+											addtocollection((folderStr + texpathStr + texfileAO_s).c_str());
+											addtocollection((folderStr + texfileAO_s).c_str());
+											std::string texfileIllumination_s = texfilenoext_s + "_illumination.dds";
+											addtocollection((folderStr + texpathStr + texfileIllumination_s).c_str());
+											addtocollection((folderStr + texfileIllumination_s).c_str());
+											std::string texfilesurface_s = texfilenoext_s + "_surface.dds";
+											addtocollection((folderStr + texpathStr + texfilesurface_s).c_str());
+											addtocollection((folderStr + texfilesurface_s).c_str());
 										}
 									}
 								}
 
-								if (FileExist(cstr(cstr(folder_s) + texpath_s + texfile_s).Get()))
-									addtocollection(cstr(cstr(folder_s) + texpath_s + texfile_s).Get());
-								if (FileExist(cstr(cstr(folder_s) + texfile_s).Get()))
-									addtocollection(cstr(cstr(folder_s) + texfile_s).Get());
+								if (FileExist(const_cast<char*>((folderStr + texpathStr + texfile_s).c_str())))
+									addtocollection((folderStr + texpathStr + texfile_s).c_str());
+								if (FileExist(const_cast<char*>((folderStr + texfile_s).c_str())))
+									addtocollection((folderStr + texfile_s).c_str());
 
-								if (cstr(Right(texfile_s.Get(), 4)) != ".dds")
+								size_t texLen = texfile_s.length();
+								if (texLen >= 4 && _stricmp(texfile_s.c_str() + texLen - 4, ".dds") != 0)
 								{
-									//  also convert to DDS and add those too
-									if (FileExist(cstr(cstr(folder_s) + texfile_s + ".png").Get()))
-										addtocollection(cstr(cstr(folder_s) + texfile_s + ".png").Get());
-									texfile_s = cstr(Left(texfile_s.Get(), Len(texfile_s.Get()) - 4)) + ".dds";
-									if (FileExist(cstr(cstr(folder_s) + texpath_s + texfile_s).Get()))
-										addtocollection(cstr(cstr(folder_s) + texpath_s + texfile_s).Get());
-									if (FileExist(cstr(cstr(folder_s) + texfile_s).Get()))
-										addtocollection(cstr(cstr(folder_s) + texfile_s).Get());
+									if (FileExist(const_cast<char*>((folderStr + texfile_s + ".png").c_str())))
+										addtocollection((folderStr + texfile_s + ".png").c_str());
+									std::string ddsFile = texfile_s.substr(0, texLen - 4) + ".dds";
+									if (FileExist(const_cast<char*>((folderStr + texpathStr + ddsFile).c_str())))
+										addtocollection((folderStr + texpathStr + ddsFile).c_str());
+									if (FileExist(const_cast<char*>((folderStr + ddsFile).c_str())))
+										addtocollection((folderStr + ddsFile).c_str());
 								}
 							}
 							b += 4;
@@ -4767,158 +4643,127 @@ void findalltexturesinmodelfile ( char* inputfile_s, char* folder_s, char* texpa
 	}
 }
 
-//
-// Scan default installation, keep core copy of default files for reference (so know custom content when we see it)
-//
-
 void CreateItineraryFile ( void )
 {
 	g_sDefaultAssetFiles.clear();
 }
 
-void scanallfolder ( cstr subThisFolder_s, cstr subFolder_s )
+void scanallfolder ( const char* subThisFolder_s, const char* subFolder_s )
 {
-	// into folder
-	if ( subThisFolder_s.Len() > 0 ) SetDir ( subThisFolder_s.Get() );
+	std::string thisFolder = subThisFolder_s ? subThisFolder_s : "";
+	std::string folder = subFolder_s ? subFolder_s : "";
+	if (!thisFolder.empty()) SetDir(const_cast<char*>(thisFolder.c_str()));
 
-	// first scan all files and folders - store folders locally
 	ChecklistForFiles();
 	int iFoldersCount = ChecklistQuantity();
-	cstr* pFolders = new cstr[iFoldersCount+1];
-	for ( int c = 1; c <= iFoldersCount; c++ )
+	std::vector<std::string> folders(iFoldersCount + 1);
+	for (int c = 1; c <= iFoldersCount; c++)
 	{
-		pFolders[c] = "";
-		LPSTR pFileFolderName = ChecklistString(c);
-		if ( strcmp ( pFileFolderName, "." ) != NULL && strcmp ( pFileFolderName, ".." ) !=NULL )
+		const char* pFileFolderName = ChecklistString(c);
+		if (pFileFolderName && strcmp(pFileFolderName, ".") != 0 && strcmp(pFileFolderName, "..") != 0)
 		{
-			if ( ChecklistValueA(c) == 1 )
+			if (ChecklistValueA(c) == 1)
 			{
-				pFolders[c] = pFileFolderName;
+				folders[c] = pFileFolderName;
 			}
 			else
 			{
-				// found file reference
-				cstr relativeFilePath_s = subFolder_s + "\\" + pFileFolderName;
-
-				// clean up string
-				LPSTR pOldStr = relativeFilePath_s.Get();
-				LPSTR pCleanStr = new char[strlen(pOldStr)+1];
-				int nn = 0;
-				for ( int n = 0; n < strlen(pOldStr); n++ )
+				std::string relativeFilePath_s = folder + "\\" + pFileFolderName;
+				std::string cleanStr;
+				cleanStr.reserve(relativeFilePath_s.length());
+				for (size_t n = 0; n < relativeFilePath_s.length(); n++)
 				{
-					if ( pOldStr[n] == '\\' && pOldStr[n+1] == '\\' ) n++; // skip duplicate backslashes
-					pCleanStr[nn++] = pOldStr[n];
+					if (relativeFilePath_s[n] == '\\' && n + 1 < relativeFilePath_s.length() && relativeFilePath_s[n + 1] == '\\')
+						continue;
+					cleanStr += relativeFilePath_s[n];
 				}
-				pCleanStr[nn] = 0; 
-
-				// add to master asset list of known stock assets
-				g_sDefaultAssetFiles.push_back ( pCleanStr );
+				g_sDefaultAssetFiles.push_back(cleanStr.c_str());
 			}
 		}
 	}
 
-	// now use local folder list and investigate each one
-	for ( int f = 1; f <= iFoldersCount; f++ )
+	for (int f = 1; f <= iFoldersCount; f++)
 	{
-		cstr pFolderName = pFolders[f];
-		if ( pFolderName.Len() > 0 )
+		if (!folders[f].empty())
 		{
-			cstr relativeFolderPath_s = pFolderName;
-			if ( subFolder_s.Len() > 0 ) relativeFolderPath_s = subFolder_s + "\\" + pFolderName;
-			scanallfolder ( pFolderName, relativeFolderPath_s );
+			std::string relFolder = folders[f];
+			if (!folder.empty()) relFolder = folder + "\\" + folders[f];
+			scanallfolder(folders[f].c_str(), relFolder.c_str());
 		}
 	}
 
-	// back out of folder
-	if ( subThisFolder_s.Len() > 0 ) SetDir ( ".." );
-
-	// finally free resources
-	delete[] pFolders;
+	if (!thisFolder.empty()) SetDir("..");
 }
 
-bool IsFileAStockAsset ( LPSTR pCheckThisFile )  
+bool IsFileAStockAsset ( const char* pCheckThisFile )
 {
-	// check if this file exists in stock assets
+	if (!pCheckThisFile || !*pCheckThisFile) return false;
 	char pFileToCheck[2048];
-	strcpy ( pFileToCheck, pCheckThisFile );
-	for ( int n = 0; n < g_sDefaultAssetFiles.size(); n++ )
+	strncpy(pFileToCheck, pCheckThisFile, sizeof(pFileToCheck) - 1);
+	pFileToCheck[sizeof(pFileToCheck) - 1] = '\0';
+
+	for (size_t n = 0; n < g_sDefaultAssetFiles.size(); n++)
 	{
-		LPSTR pCompare = g_sDefaultAssetFiles[n].Get();
-		if ( stricmp ( pFileToCheck, pCompare ) == NULL )
+		const char* pCompare = g_sDefaultAssetFiles[n].Get();
+		if (pCompare && _stricmp(pFileToCheck, pCompare) == 0)
 			return true;
 	}
-	// before we return false, check special case for DBO files that have X files
+
 	bool bSecondaryCheck = false;
-	if ( strnicmp ( pCheckThisFile + strlen(pCheckThisFile) - 4, ".dbo", 4 ) == NULL )
+	size_t len = strlen(pCheckThisFile);
+	if (len >= 4 && _stricmp(pCheckThisFile + len - 4, ".dbo") == 0)
 	{
-		pFileToCheck[strlen(pFileToCheck)-4] = 0;
-		strcat ( pFileToCheck, ".x" );
-		bSecondaryCheck = true;
-	}
-	if ( bSecondaryCheck == true )
-	{
-		for ( int n = 0; n < g_sDefaultAssetFiles.size(); n++ )
+		if (len < sizeof(pFileToCheck) - 2)
 		{
-			LPSTR pCompare = g_sDefaultAssetFiles[n].Get();
-			if ( stricmp ( pFileToCheck, pCompare ) == NULL )
+			strncpy(pFileToCheck, pCheckThisFile, sizeof(pFileToCheck) - 1);
+			pFileToCheck[len - 4] = '\0';
+			strcat(pFileToCheck, ".x");
+			bSecondaryCheck = true;
+		}
+	}
+	if (bSecondaryCheck)
+	{
+		for (size_t n = 0; n < g_sDefaultAssetFiles.size(); n++)
+		{
+			const char* pCompare = g_sDefaultAssetFiles[n].Get();
+			if (pCompare && _stricmp(pFileToCheck, pCompare) == 0)
 				return true;
 		}
 	}
 	return false;
 }
 
-
-
-void AddWPETextures(char* filename)
+void AddWPETextures(const char* filename)
 {
+	if (!filename || !*filename) return;
 	char cPE[MAX_PATH];
-	strcpy(cPE, filename);
+	strncpy(cPE, filename, sizeof(cPE) - 1);
+	cPE[sizeof(cPE) - 1] = '\0';
 	char* find = (char*)pestrcasestr(cPE, ".pe");
 	if (find)
 	{
 		*find = '\0';
 		char finalname[MAX_PATH];
-		strcpy(finalname, cPE);
-		strcat(finalname, "0_color.png");
-		addtocollection(finalname);
-		strcpy(finalname, cPE);
-		strcat(finalname, "1_color.png");
-		addtocollection(finalname);
-		strcpy(finalname, cPE);
-		strcat(finalname, "2_color.png");
-		addtocollection(finalname);
-		strcpy(finalname, cPE);
-		strcat(finalname, "3_color.png");
-		addtocollection(finalname);
-		strcpy(finalname, cPE);
-		strcat(finalname, "4_color.png");
-		addtocollection(finalname);
-		strcpy(finalname, cPE);
-		strcat(finalname, "5_color.png");
-		addtocollection(finalname);
-		strcpy(finalname, cPE);
-		strcat(finalname, "6_color.png");
-		addtocollection(finalname);
+		for (int idx = 0; idx <= 6; ++idx)
+		{
+			snprintf(finalname, sizeof(finalname), "%s%d_color.png", cPE, idx);
+			addtocollection(finalname);
+		}
 	}
 	else
 	{
-		char* find = (char*)pestrcasestr(cPE, ".arx");
+		find = (char*)pestrcasestr(cPE, ".arx");
 		if (find)
 		{
 			*find = '\0';
 			char finalname[MAX_PATH];
-			strcpy(finalname, cPE);
-			strcat(finalname, "_g.png");
-			addtocollection(finalname);
-			strcpy(finalname, cPE);
-			strcat(finalname, "_r.png");
-			addtocollection(finalname);
-			strcpy(finalname, cPE);
-			strcat(finalname, "_s1.png");
-			addtocollection(finalname);
-			strcpy(finalname, cPE);
-			strcat(finalname, "_sx.png");
-			addtocollection(finalname);
+			const char* suffixes[] = { "_g.png", "_r.png", "_s1.png", "_sx.png" };
+			for (const char* suf : suffixes)
+			{
+				snprintf(finalname, sizeof(finalname), "%s%s", cPE, suf);
+				addtocollection(finalname);
+			}
 		}
 	}
 }
+
