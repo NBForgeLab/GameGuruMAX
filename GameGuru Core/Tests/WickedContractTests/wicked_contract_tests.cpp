@@ -193,3 +193,55 @@ TEST_CASE("WickedCall_InitImageManagement resets the list and stores the root")
 	CHECK(g_imageList.empty());
 	CHECK(g_rootFolder == root);
 }
+
+TEST_CASE("WickedResolveTexturePath canonical texture resolution tests")
+{
+	std::string root = MakeRootLayout();
+	ScopedWorkingDirectory cwd;
+	cwd.Set(root + "\\Files");
+
+	// Create test directories
+	MakeDir(root + "\\Files\\charactercreatorplus");
+	MakeDir(root + "\\Files\\charactercreatorplus\\parts");
+	MakeDir(root + "\\Files\\charactercreatorplus\\parts\\adult female");
+	MakeDir(root + "\\Files\\charactercreatorplus\\parts\\adult male");
+
+	auto TouchFile = [](const std::string& path) {
+		HANDLE h = CreateFileA(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+		if (h != INVALID_HANDLE_VALUE) CloseHandle(h);
+	};
+
+	// Create real mock asset files on disk
+	std::string hair11b = root + "\\Files\\charactercreatorplus\\parts\\adult female\\adult female hair 11b_color.dds";
+	std::string head16bMale = root + "\\Files\\charactercreatorplus\\parts\\adult male\\adult male head 16b_color.dds";
+	std::string head16NormMale = root + "\\Files\\charactercreatorplus\\parts\\adult male\\adult male head 16_normal.dds";
+	TouchFile(hair11b);
+	TouchFile(head16bMale);
+	TouchFile(head16NormMale);
+
+	// Test 1: Suffix variant probing (hair 11_color -> hair 11b_color)
+	std::string reqHair = "charactercreatorplus\\parts\\adult female\\adult female hair 11_color.dds";
+	std::string resHair = WickedResolveTexturePath(reqHair, "", "");
+	CHECK_FALSE(resHair.empty());
+	CHECK(resHair.find("11b_color.dds") != std::string::npos);
+
+	// Test 2: Cross-category modular part probe (female head 16b -> male head 16b)
+	std::string reqHead = "charactercreatorplus\\parts\\adult female\\adult female head 16b_color.dds";
+	std::string resHead = WickedResolveTexturePath(reqHead, "", "");
+	CHECK_FALSE(resHead.empty());
+	CHECK(resHead.find("adult male") != std::string::npos);
+	CHECK(resHead.find("head 16b_color.dds") != std::string::npos);
+
+	// Test 3: Normal map cross-category probe
+	std::string reqHeadNorm = "charactercreatorplus\\parts\\adult female\\adult female head 16_normal.dds";
+	std::string resHeadNorm = WickedResolveTexturePath(reqHeadNorm, "", "");
+	CHECK_FALSE(resHeadNorm.empty());
+	CHECK(resHeadNorm.find("adult male") != std::string::npos);
+	CHECK(resHeadNorm.find("head 16_normal.dds") != std::string::npos);
+
+	// Test 4: Missing texture returns empty string
+	std::string reqMissing = "charactercreatorplus\\parts\\adult female\\nonexistent_texture_xyz.dds";
+	std::string resMissing = WickedResolveTexturePath(reqMissing, "", "");
+	CHECK(resMissing.empty());
+}
+

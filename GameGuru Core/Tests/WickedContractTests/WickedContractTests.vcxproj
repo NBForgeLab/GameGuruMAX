@@ -68,6 +68,7 @@
       <SDLCheck>false</SDLCheck>
       <AdditionalIncludeDirectories>..\..\..\..\WickedRepo\WickedEngine;..\..\Guru-WickedMAX;..\..\GameGuru\Include;..\..\Dark Basic Public Shared\Include;..\..\Dark Wicked Shared\Include;..\..\Dark Wicked Shared\DWTerrain;..\..\SDK\DirectX;..\..\SDK\DB3;..\..\SDK\BaseClasses;..\..\SDK\DirectX\Include;..\..\SDK\Steamworks SDK\public;..\..\SDK\RecastContrib;..\..\SDK\RecastContrib\fastlz;..\..\SDK\BULLET\bullet-3.19\src;..\..\SDK\OPTICK\include;..\..\Guru-WickedMAX\GGRecastDetour\DebugUtils\Include;..\..\Guru-WickedMAX\GGRecastDetour\Detour\Include;..\..\Guru-WickedMAX\GGRecastDetour\DetourCrowd\Include;..\..\Guru-WickedMAX\GGRecastDetour\DetourTileCache\Include;..\..\Guru-WickedMAX\GGRecastDetour\Recast\Include;..\..\SDK\RecastContrib\SDL\include;..\..\Guru-WickedMAX\GGRecastDetour;..\third_party\doctest;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalOptions>/Gy /Gw /FS %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
@@ -86,6 +87,7 @@
       <SDLCheck>false</SDLCheck>
       <AdditionalIncludeDirectories>..\..\..\..\WickedRepo\WickedEngine;..\..\Guru-WickedMAX;..\..\GameGuru\Include;..\..\Dark Basic Public Shared\Include;..\..\Dark Wicked Shared\Include;..\..\Dark Wicked Shared\DWTerrain;..\..\SDK\DirectX;..\..\SDK\DB3;..\..\SDK\BaseClasses;..\..\SDK\DirectX\Include;..\..\SDK\Steamworks SDK\public;..\..\SDK\RecastContrib;..\..\SDK\RecastContrib\fastlz;..\..\SDK\BULLET\bullet-3.19\src;..\..\SDK\OPTICK\include;..\..\Guru-WickedMAX\GGRecastDetour\DebugUtils\Include;..\..\Guru-WickedMAX\GGRecastDetour\Detour\Include;..\..\Guru-WickedMAX\GGRecastDetour\DetourCrowd\Include;..\..\Guru-WickedMAX\GGRecastDetour\DetourTileCache\Include;..\..\Guru-WickedMAX\GGRecastDetour\Recast\Include;..\..\SDK\RecastContrib\SDL\include;..\..\Guru-WickedMAX\GGRecastDetour;..\third_party\doctest;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalOptions>/Gy /Gw /FS %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
