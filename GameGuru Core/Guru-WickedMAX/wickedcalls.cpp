@@ -1336,7 +1336,7 @@ void WickedCall_AddObject ( sObject* pObject )
 	// ensure wickedloaderstateptr deleted first
 	if (pObject->wickedloaderstateptr)
 	{
-		delete pObject->wickedloaderstateptr;
+		delete (WickedLoaderState*)pObject->wickedloaderstateptr;
 		pObject->wickedloaderstateptr = NULL;
 	}
 
@@ -1832,23 +1832,20 @@ void WickedCall_RemoveObject( sObject* pObject )
 		WickedCall_StopObject(pObject);
 
 		// remove any animcomponents
-		if (pObject->pAnimationSet)
+		for (sAnimationSet* pAnimSet = pObject->pAnimationSet; pAnimSet; pAnimSet = pAnimSet->pNext)
 		{
-			sAnimationSet* pAnimSet = pObject->pAnimationSet;
-			{
-				if (pAnimSet->wickedanimentityindex > 0)
-				{				
-					AnimationComponent* animationcomponent = wiScene::GetScene().animations.GetComponent( pAnimSet->wickedanimentityindex );
-					if (animationcomponent)
+			if (pAnimSet->wickedanimentityindex > 0)
+			{				
+				AnimationComponent* animationcomponent = wiScene::GetScene().animations.GetComponent( pAnimSet->wickedanimentityindex );
+				if (animationcomponent)
+				{
+					for (int i = 0; i < animationcomponent->samplers.size(); i++)
 					{
-						for (int i = 0; i < animationcomponent->samplers.size(); i++)
-						{
-							wiScene::GetScene().Entity_Remove(animationcomponent->samplers[i].data);
-						}
+						wiScene::GetScene().Entity_Remove(animationcomponent->samplers[i].data);
 					}
-					wiScene::GetScene().Entity_Remove(pAnimSet->wickedanimentityindex);
-					pAnimSet->wickedanimentityindex = 0;
 				}
+				wiScene::GetScene().Entity_Remove(pAnimSet->wickedanimentityindex);
+				pAnimSet->wickedanimentityindex = 0;
 			}
 		}
 
@@ -1896,7 +1893,7 @@ void WickedCall_RemoveObject( sObject* pObject )
 		// ensure wickedloaderstateptr deleted first
 		if (pObject->wickedloaderstateptr)
 		{
-			delete pObject->wickedloaderstateptr;
+			delete (WickedLoaderState*)pObject->wickedloaderstateptr;
 			pObject->wickedloaderstateptr = NULL;
 		}
 

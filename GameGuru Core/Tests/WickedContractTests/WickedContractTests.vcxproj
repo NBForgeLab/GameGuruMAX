@@ -66,7 +66,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;GGREDUCED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>false</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\..\WickedRepo\WickedEngine;..\..\Guru-WickedMAX;..\..\GameGuru\Include;..\..\Dark Basic Public Shared\Include;..\..\Dark Wicked Shared\Include;..\..\Dark Wicked Shared\DWTerrain;..\..\SDK\DirectX;..\..\SDK\DB3;..\..\SDK\BaseClasses;..\..\SDK\DirectX\Include;..\..\SDK\Steamworks SDK\public;..\..\SDK\RecastContrib;..\..\SDK\RecastContrib\fastlz;..\..\SDK\BULLET\bullet-3.19\src;..\..\SDK\OPTICK\include;..\..\Guru-WickedMAX\GGRecastDetour\DebugUtils\Include;..\..\Guru-WickedMAX\GGRecastDetour\Detour\Include;..\..\Guru-WickedMAX\GGRecastDetour\DetourCrowd\Include;..\..\Guru-WickedMAX\GGRecastDetour\DetourTileCache\Include;..\..\Guru-WickedMAX\GGRecastDetour\Recast\Include;..\..\SDK\RecastContrib\SDL\include;..\..\Guru-WickedMAX\GGRecastDetour;..\third_party\doctest;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\..\WickedRepo\WickedEngine;..\..\Guru-WickedMAX;..\..\GameGuru\Include;..\..\Dark Basic Public Shared\Include;..\..\Dark Wicked Shared\Include;..\..\Dark Wicked Shared\DWTerrain;..\..\SDK\DirectX;..\..\SDK\DB3;..\..\SDK\BaseClasses;..\..\SDK\DirectX\Include;..\..\SDK\Steamworks SDK\public;..\..\SDK\RecastContrib;..\..\SDK\RecastContrib\fastlz;..\..\SDK\BULLET\bullet-3.19\src;..\..\SDK\OPTICK\include;..\..\Guru-WickedMAX\GGRecastDetour\DebugUtils\Include;..\..\Guru-WickedMAX\GGRecastDetour\Detour\Include;..\..\Guru-WickedMAX\GGRecastDetour\DetourCrowd\Include;..\..\Guru-WickedMAX\GGRecastDetour\DetourTileCache\Include;..\..\Guru-WickedMAX\GGRecastDetour\Recast\Include;..\..\SDK\RecastContrib\SDL\include;..\..\Guru-WickedMAX\GGRecastDetour;..\..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\DBOFormat;..\third_party\doctest;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalOptions>/Gy /Gw /FS %(AdditionalOptions)</AdditionalOptions>
@@ -85,7 +85,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;GGREDUCED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>false</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\..\WickedRepo\WickedEngine;..\..\Guru-WickedMAX;..\..\GameGuru\Include;..\..\Dark Basic Public Shared\Include;..\..\Dark Wicked Shared\Include;..\..\Dark Wicked Shared\DWTerrain;..\..\SDK\DirectX;..\..\SDK\DB3;..\..\SDK\BaseClasses;..\..\SDK\DirectX\Include;..\..\SDK\Steamworks SDK\public;..\..\SDK\RecastContrib;..\..\SDK\RecastContrib\fastlz;..\..\SDK\BULLET\bullet-3.19\src;..\..\SDK\OPTICK\include;..\..\Guru-WickedMAX\GGRecastDetour\DebugUtils\Include;..\..\Guru-WickedMAX\GGRecastDetour\Detour\Include;..\..\Guru-WickedMAX\GGRecastDetour\DetourCrowd\Include;..\..\Guru-WickedMAX\GGRecastDetour\DetourTileCache\Include;..\..\Guru-WickedMAX\GGRecastDetour\Recast\Include;..\..\SDK\RecastContrib\SDL\include;..\..\Guru-WickedMAX\GGRecastDetour;..\third_party\doctest;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\..\WickedRepo\WickedEngine;..\..\Guru-WickedMAX;..\..\GameGuru\Include;..\..\Dark Basic Public Shared\Include;..\..\Dark Wicked Shared\Include;..\..\Dark Wicked Shared\DWTerrain;..\..\SDK\DirectX;..\..\SDK\DB3;..\..\SDK\BaseClasses;..\..\SDK\DirectX\Include;..\..\SDK\Steamworks SDK\public;..\..\SDK\RecastContrib;..\..\SDK\RecastContrib\fastlz;..\..\SDK\BULLET\bullet-3.19\src;..\..\SDK\OPTICK\include;..\..\Guru-WickedMAX\GGRecastDetour\DebugUtils\Include;..\..\Guru-WickedMAX\GGRecastDetour\Detour\Include;..\..\Guru-WickedMAX\GGRecastDetour\DetourCrowd\Include;..\..\Guru-WickedMAX\GGRecastDetour\DetourTileCache\Include;..\..\Guru-WickedMAX\GGRecastDetour\Recast\Include;..\..\SDK\RecastContrib\SDL\include;..\..\Guru-WickedMAX\GGRecastDetour;..\..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\DBOFormat;..\third_party\doctest;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalOptions>/Gy /Gw /FS %(AdditionalOptions)</AdditionalOptions>
@@ -104,6 +104,13 @@
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="wicked_contract_tests.cpp" />
+    <ClCompile Include="dbo_wicked_contract_tests.cpp" />
+    <ClCompile Include="..\..\Guru-WickedMAX\DBOModel.cpp" />
+    <ClCompile Include="..\..\Guru-WickedMAX\DBOCompatibility.cpp" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\DBOFormat\DBOData.cpp" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\Core\KMaths\cMatrix.cpp" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\Core\KMaths\cVector3D.cpp" />
+    <ClCompile Include="..\..\Dark Basic Public Shared\Dark Basic Pro SDK\Shared\Core\KMaths\cVector4D.cpp" />
     <!-- The real translation layer between GameGuru and the Wicked Engine.
          Compiled with /Gy so the linker only pulls the code paths the
          contract tests call, without dragging the whole product. -->

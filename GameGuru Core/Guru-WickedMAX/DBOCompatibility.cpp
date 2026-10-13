@@ -352,6 +352,19 @@ bool CreateCompatibilityObject(const Model &model, sObject **output,
     object->iFrameCount = static_cast<int>(frames.size());
     object->iMeshCount = static_cast<int>(meshes.size());
     object->bNoMeshesInObject = (object->iMeshCount == 0);
+    for (sAnimationSet *set = object->pAnimationSet; set; set = set->pNext) {
+      for (sAnimation *anim = set->pAnimation; anim; anim = anim->pNext) {
+        if (!anim->pFrame && anim->szName && object->ppFrameList) {
+          for (int f = 0; f < object->iFrameCount; ++f) {
+            if (object->ppFrameList[f] && object->ppFrameList[f]->szName &&
+                _stricmp(object->ppFrameList[f]->szName, anim->szName) == 0) {
+              anim->pFrame = object->ppFrameList[f];
+              break;
+            }
+          }
+        }
+      }
+    }
     *output = object.release();
     error.clear();
     return true;
