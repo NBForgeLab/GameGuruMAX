@@ -5,6 +5,9 @@
 #include <string>
 #include <thread>
 #include <chrono>
+#include <fstream>
+#include <sstream>
+#include "../../GameGuru/Include/Common-File.h"
 
 using namespace gg_e2e;
 
@@ -327,3 +330,127 @@ TEST_CASE("Tier1_R4_TC06_Lua_Global_State_Preservation")
     CHECK_EQ(retVal, 100);
     lua_pop(state.Get(), 1);
 }
+
+// ============================================================================
+// TIER 1: FEATURE COVERAGE (R5 - COMMON-FILE SCRATCHPAD ERADICATION)
+// ============================================================================
+
+TEST_CASE("Tier1_R5_TC01_CommonFile_Scratchpad_And_cStr_Eradication")
+{
+    // Oracle: Eradicate DarkBASIC legacy shared scratchpad registers (t.szwork, t.szreturn, t.strwork, t.told_s)
+    // and replace cStr with standard C++ types in Common-File.cpp and Common-File.h
+    const auto commonFilePath = GetGameGuruCorePath() / "GameGuru" / "Source" / "Common-File.cpp";
+    REQUIRE(ProjectAudit::FileExists(commonFilePath));
+
+    std::ifstream file(commonFilePath);
+    REQUIRE(file.is_open());
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string content = buffer.str();
+
+    // Verify all legacy registers are eradicated from Common-File.cpp
+    CHECK_EQ(content.find("t.szwork"), std::string::npos);
+    CHECK_EQ(content.find("t.szreturn"), std::string::npos);
+    CHECK_EQ(content.find("t.strwork"), std::string::npos);
+    CHECK_EQ(content.find("t.told_s"), std::string::npos);
+
+    // Verify cStr is replaced with std::string / standard types in Common-File.cpp
+    CHECK_EQ(content.find("cstr "), std::string::npos);
+    CHECK_EQ(content.find("cStr "), std::string::npos);
+
+    // Verify Common-File.h has also eradicated cStr and cstr.h
+    const auto commonHeaderPath = GetGameGuruCorePath() / "GameGuru" / "Include" / "Common-File.h";
+    REQUIRE(ProjectAudit::FileExists(commonHeaderPath));
+    std::ifstream headerFile(commonHeaderPath);
+    REQUIRE(headerFile.is_open());
+    std::stringstream headerBuffer;
+    headerBuffer << headerFile.rdbuf();
+    std::string headerContent = headerBuffer.str();
+    CHECK_EQ(headerContent.find("cstr "), std::string::npos);
+    CHECK_EQ(headerContent.find("cStr "), std::string::npos);
+    CHECK_EQ(headerContent.find("\"cstr.h\""), std::string::npos);
+}
+
+TEST_CASE("Tier1_R5_TC02_CommonFile_Version_Comparison_Contract")
+{
+    // Verification of real production function versionnumberislarger(tNum1, tNum2) from Common-File.h
+
+    // Equal versions -> 0
+    CHECK_EQ(versionnumberislarger(0, 0), 0);
+    CHECK_EQ(versionnumberislarger(100, 100), 0);
+    CHECK_EQ(versionnumberislarger(201232, 201232), 0);
+
+    // Larger -> 1
+    CHECK_EQ(versionnumberislarger(201, 200), 1);
+    CHECK_EQ(versionnumberislarger(999, 1000), 1); // '9' > '1'
+    CHECK_EQ(versionnumberislarger(200, 20), 1);   // length 3 > 2 with common prefix
+    CHECK_EQ(versionnumberislarger(12345, 12344), 1);
+    CHECK_EQ(versionnumberislarger(20100721, 20090101), 1); // Profile versions
+
+    // Smaller -> 0
+    CHECK_EQ(versionnumberislarger(200, 201), 0);
+    CHECK_EQ(versionnumberislarger(1000, 999), 0); // '1' < '9'
+    CHECK_EQ(versionnumberislarger(20, 200), 0);
+    CHECK_EQ(versionnumberislarger(12344, 12345), 0);
+    CHECK_EQ(versionnumberislarger(20090101, 20100721), 0);
+
+    // Negative / boundary inputs
+    CHECK_EQ(versionnumberislarger(10, -1), 1);
+    CHECK_EQ(versionnumberislarger(-1, 10), 0);
+}
+
+TEST_CASE("Tier1_R5_TC03_CommonFile_Date_Parsing_Contract")
+{
+    // Verification of real production function getdatevaluefromdatestring from Common-File.h
+
+    // Standard ctime format
+    CHECK_EQ(getdatevaluefromdatestring("Wed Jun 30 21:49:08 1993"), -10002851);
+    CHECK_EQ(getdatevaluefromdatestring("Fri Dec 02 08:30:15 2015"), 11525830);
+
+    // Single-digit day padded with space
+    CHECK_EQ(getdatevaluefromdatestring("Fri Dec  2 08:30:15 2015"), 11525830);
+
+    // Month boundary check (January 1st, 2004 at 00:00:00)
+    // ((2004 - 2004) * 960000) + (1 * 80000) + (1 * 2500) + 0 = 82500
+    CHECK_EQ(getdatevaluefromdatestring("Thu Jan  1 00:00:00 2004"), 82500);
+
+    // Leap year boundary check (Feb 29, 2024 at 12:30:00)
+    // ((2024 - 2004) * 960000) + (2 * 80000) + (29 * 2500) + 1230 = 19200000 + 160000 + 72500 + 1230 = 19433730
+    CHECK_EQ(getdatevaluefromdatestring("Thu Feb 29 12:30:00 2024"), 19433730);
+
+    // Trailing newline / whitespace handling
+    CHECK_EQ(getdatevaluefromdatestring("Fri Dec 02 08:30:15 2015\n"), 11525830);
+    CHECK_EQ(getdatevaluefromdatestring("Fri Dec 02 08:30:15 2015\r\n"), 11525830);
+
+    // Boundary / invalid inputs
+    CHECK_EQ(getdatevaluefromdatestring(nullptr), 0);
+    CHECK_EQ(getdatevaluefromdatestring(""), 0);
+    CHECK_EQ(getdatevaluefromdatestring("short string"), 0);
+    CHECK_EQ(getdatevaluefromdatestring("Wed Xxx 30 21:49:08 1993"), 0); // Invalid month
+}
+
+TEST_CASE("Tier1_R5_TC04_CommonFile_Path_And_File_Extraction")
+{
+    // Verification of real production functions ExtractFileName and ExtractPath from Common-File.h
+
+    // Windows backslash path
+    CHECK_EQ(ExtractFileName("C:\\GameGuru\\Files\\mesh.dbo"), "mesh.dbo");
+    CHECK_EQ(ExtractPath("C:\\GameGuru\\Files\\mesh.dbo"), "C:\\GameGuru\\Files\\");
+
+    // Unix forward slash path
+    CHECK_EQ(ExtractFileName("levels/subfolder/terrain.x"), "terrain.x");
+    CHECK_EQ(ExtractPath("levels/subfolder/terrain.x"), "levels/subfolder/");
+
+    // Mixed slash path
+    CHECK_EQ(ExtractFileName("root/dir\\sub/asset.dbo"), "asset.dbo");
+    CHECK_EQ(ExtractPath("root/dir\\sub/asset.dbo"), "root/dir\\sub/");
+
+    // No directory prefix
+    CHECK_EQ(ExtractFileName("model.dbo"), "model.dbo");
+    CHECK_EQ(ExtractPath("model.dbo"), "");
+
+    // Empty path
+    CHECK_EQ(ExtractFileName(""), "");
+    CHECK_EQ(ExtractPath(""), "");
+}
+
