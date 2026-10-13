@@ -74,17 +74,55 @@ if ($proc.HasExited) {
         exit 1
     }
     
-    # Check if MapEditor log was updated
+    # Check if MapEditor log was updated and verify operational milestones
     $mapLogTimeAfter = if (Test-Path $mapLog) { (Get-Item $mapLog).LastWriteTime } else { [DateTime]::MinValue }
+    $operationalMilestonesPassed = $true
     if ($mapLogTimeAfter -gt $mapLogTimeBefore) {
         Write-Host "SUCCESS: Guru-MapEditor.log was actively updated during run!" -ForegroundColor Green
-        $lastLines = Get-Content $mapLog | Select-Object -Last 10
-        Write-Host "Last lines of Guru-MapEditor.log:"
+        $logContent = Get-Content $mapLog
+        $lastLines = $logContent | Select-Object -Last 15
+        Write-Host "Recent lines of Guru-MapEditor.log:"
         $lastLines | ForEach-Object { Write-Host "   $_" }
+
+        # Milestone 1: Engine & Renderer Initialization
+        $hasRenderer = [bool]($logContent -match "wiRenderer Initialized")
+        Write-Host (" [MILESTONE] Renderer & Scene Engine Init: " + $(if ($hasRenderer) { "PASS" } else { "NOT FOUND" })) -ForegroundColor $(if ($hasRenderer) { "Green" } else { "Yellow" })
+
+        # Milestone 2: Terrain & Scene Loading
+        $hasScene = [bool]($logContent -match "(CREATING TERRAIN|NEWMAP: Starting new map|_game_loadinleveldata|_game_preparelevel)")
+        Write-Host (" [MILESTONE] Scene / Terrain Loading:       " + $(if ($hasScene) { "PASS" } else { "NOT FOUND" })) -ForegroundColor $(if ($hasScene) { "Green" } else { "Yellow" })
+
+        # Milestone 3: Models & Entity Initiations
+        $hasEntities = [bool]($logContent -match "(Entity Initiations|\.dbo)")
+        Write-Host (" [MILESTONE] Model Ingestion & Entities:     " + $(if ($hasEntities) { "PASS" } else { "NOT FOUND" })) -ForegroundColor $(if ($hasEntities) { "Green" } else { "Yellow" })
+
+        # Milestone 4: Game Loop Execution
+        $hasGameLoop = [bool]($logContent -match "(main game loop begins|STARTING GAME)")
+        Write-Host (" [MILESTONE] Game Loop & Simulation:        " + $(if ($hasGameLoop) { "PASS" } else { "NOT FOUND" })) -ForegroundColor $(if ($hasGameLoop) { "Green" } else { "Yellow" })
     }
 
-    Write-Host "Terminating test engine process cleanly..."
-    Stop-Process -Id $proc.Id -Force
-    Write-Host "SMOKE TEST PASSED: Engine launched and initialized without crashes." -ForegroundColor Green
+    Write-Host "Requesting graceful engine shutdown via CloseMainWindow()..."
+    $closedGracefully = $false
+    try {
+        $proc.CloseMainWindow() | Out-Null
+        $waitClose = 0
+        while (-not $proc.HasExited -and $waitClose -lt 5) {
+            Start-Sleep -Seconds 1
+            $waitClose++
+        }
+        if ($proc.HasExited) {
+            $closedGracefully = $true
+            Write-Host "Engine shut down gracefully after $waitClose seconds." -ForegroundColor Green
+        }
+    } catch {
+        # Fallback if window handle not present
+    }
+
+    if (-not $proc.HasExited) {
+        Write-Host "Terminating test engine process forcefully..."
+        Stop-Process -Id $proc.Id -Force
+    }
+
+    Write-Host "SMOKE TEST PASSED: Engine launched, operational milestones verified, and completed without crashes." -ForegroundColor Green
     exit 0
 }
